@@ -1,0 +1,1 @@
+{"version":3,"file":"server-config.d.ts","sourceRoot":"","sources":["../src/server-config.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,mBAAmB,cAAc,CAAC;AAC/C,eAAO,MAAM,mBAAmB,OAAO,CAAC;AAExC,MAAM,WAAW,mBAAmB;IAClC,IAAI,EAAE,MAAM,CAAC;IACb,IAAI,EAAE,MAAM,CAAC;CACd;AAED,+FAA+F;AAC/F,wBAAgB,mBAAmB,CAAC,GAAG,GAAE,MAAM,CAAC,UAAwB,GAAG,mBAAmB,CAW7F"}

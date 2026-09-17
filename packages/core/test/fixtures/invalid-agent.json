@@ -1,0 +1,5 @@
+{
+  "agents": {
+    "default": { "model": "gpt-5" }
+  }
+}

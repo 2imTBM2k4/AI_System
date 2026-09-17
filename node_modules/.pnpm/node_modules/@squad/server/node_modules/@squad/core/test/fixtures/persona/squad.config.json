@@ -1,0 +1,6 @@
+{
+  "agents": {
+    "default": { "cli": "claude" },
+    "tester": { "cli": "gemini" }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@squad/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "squad": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsx src/index.ts",
+    "test": "tsc -b && vitest run"
+  },
+  "dependencies": {
+    "@squad/core": "workspace:*"
+  }
+}

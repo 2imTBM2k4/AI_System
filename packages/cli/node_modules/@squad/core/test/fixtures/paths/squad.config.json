@@ -1,0 +1,8 @@
+{
+  "worktreeDir": "runtime/worktrees",
+  "dbFile": "runtime/squad.db",
+  "planFile": "plans/latest.json",
+  "logDir": "runtime/logs",
+  "copyFiles": [".env", "config/local.json"],
+  "agents": { "default": { "cli": "claude" } }
+}

@@ -106,10 +106,14 @@ export class SquadOrchestrator extends EventEmitter {
       },
     );
     if (processResult.exitCode !== 0 || processResult.timedOut) {
+      const outputText = outputChunks.join('').trim();
+      const failureMsg = this.processFailureMessage(processResult);
       throw new Error(
         processResult.timedOut
           ? `Planner timed out after ${this.options.config.config.timeoutMinutes} minutes.`
-          : this.processFailureMessage(processResult),
+          : outputText
+          ? `${failureMsg} Chi tiết: ${outputText.slice(-500)}`
+          : failureMsg,
       );
     }
 

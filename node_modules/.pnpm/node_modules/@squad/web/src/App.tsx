@@ -5,6 +5,7 @@ import { ActiveRunBanner } from './components/plan/ActiveRunBanner';
 import { PlanCreator } from './components/plan/PlanCreator';
 import { PlanReviewModal } from './components/plan/PlanReviewModal';
 import { KanbanBoard } from './components/dashboard/KanbanBoard';
+import { AiProviderHubModal } from './components/providers/AiProviderHubModal';
 import { useRepos } from './hooks/useRepos';
 import { useSquadEvents } from './hooks/useSquadEvents';
 import type { PlanResponse } from '@squad/shared-types';
@@ -25,6 +26,7 @@ export function App() {
 
   const [currentViewRunId, setCurrentViewRunId] = useState<string | null>(null);
   const [createdPlan, setCreatedPlan] = useState<PlanResponse | null>(null);
+  const [showAiHubModal, setShowAiHubModal] = useState(false);
 
   // Mặc định view run active gần nhất nếu có, hoặc run đầu tiên trong lịch sử
   useEffect(() => {
@@ -73,6 +75,7 @@ export function App() {
         selectedRepoId={selectedRepoId}
         onSelectRepo={handleSelectRepo}
         onRepoAdded={refreshRepos}
+        onOpenAiHub={() => setShowAiHubModal(true)}
         isConnected={isConnected}
       />
 
@@ -163,6 +166,14 @@ export function App() {
           planData={createdPlan}
           onClose={() => setCreatedPlan(null)}
           onRunStarted={handleRunStarted}
+        />
+      )}
+
+      {/* AI Provider Hub & Model Manager Modal */}
+      {showAiHubModal && (
+        <AiProviderHubModal
+          selectedRepoId={selectedRepoId}
+          onClose={() => setShowAiHubModal(false)}
         />
       )}
     </div>

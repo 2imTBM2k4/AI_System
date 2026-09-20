@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "squad": "tsx packages/cli/src/index.ts",
     "build": "pnpm -r build",
     "test": "pnpm -r test"
   },

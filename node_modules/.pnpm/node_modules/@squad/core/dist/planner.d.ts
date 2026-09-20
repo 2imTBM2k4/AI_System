@@ -98,7 +98,7 @@ export declare const PlanSchema: z.ZodObject<{
 export declare function buildPlannerPrompt(cfg: SquadConfig, goal: string, overview: RepoOverview): string;
 /** Summarizes tracked files without reading repository contents. */
 export declare function repoOverview(repoPath: string): Promise<RepoOverview>;
-/** Extracts the first balanced JSON object after removing Markdown code fences. */
+/** Extracts a balanced JSON object from agent output, filtering out reasoning tags and prioritizing objects containing "tasks". */
 export declare function extractJson(text: string): string;
 /** Parses, validates, and completes an agent-generated plan. */
 export declare function parsePlanOutput(output: string, goal: string): Plan;

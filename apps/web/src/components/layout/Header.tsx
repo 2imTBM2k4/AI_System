@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GitBranch, FolderGit2, Plus, Server } from 'lucide-react';
+import { GitBranch, FolderGit2, Plus, Server, Cpu } from 'lucide-react';
 import type { RepoDto } from '@squad/shared-types';
 import { registerRepo } from '../../api/client';
 
@@ -8,6 +8,7 @@ interface HeaderProps {
   selectedRepoId: string | null;
   onSelectRepo: (id: string) => void;
   onRepoAdded: () => void;
+  onOpenAiHub: () => void;
   isConnected: boolean;
 }
 
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   selectedRepoId,
   onSelectRepo,
   onRepoAdded,
+  onOpenAiHub,
   isConnected,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -86,6 +88,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Plus className="w-3.5 h-3.5 text-indigo-400" />
               Thêm Repo
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenAiHub}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg border border-indigo-500/30 transition-all hover:scale-[1.02] cursor-pointer"
+              title="Cấu hình AI Providers, 9Router và chọn Model cho các roles"
+            >
+              <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+              <span>AI Providers & Models</span>
             </button>
           </div>
         </div>

@@ -8,6 +8,14 @@ import type {
   CancelTaskResponse,
   MergeResponse,
   PlanDto,
+  ProviderConfigDto,
+  GetProvidersResponse,
+  SaveProvidersRequest,
+  TestProviderRequest,
+  TestProviderResponse,
+  RepoConfigResponse,
+  UpdateRepoConfigRequest,
+  SquadConfigDto,
 } from '@squad/shared-types';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -90,4 +98,44 @@ export async function mergeRun(runId: string): Promise<MergeResponse> {
     method: 'POST',
   });
   return handleResponse<MergeResponse>(res);
+}
+
+export async function getProviders(): Promise<GetProvidersResponse> {
+  const res = await fetch('/providers');
+  return handleResponse<GetProvidersResponse>(res);
+}
+
+export async function saveProviders(providers: ProviderConfigDto[]): Promise<GetProvidersResponse> {
+  const res = await fetch('/providers/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ providers } satisfies SaveProvidersRequest),
+  });
+  return handleResponse<GetProvidersResponse>(res);
+}
+
+export async function testProvider(req: TestProviderRequest): Promise<TestProviderResponse> {
+  const res = await fetch('/providers/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<TestProviderResponse>(res);
+}
+
+export async function getRepoConfig(repoId: string): Promise<RepoConfigResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/config`);
+  return handleResponse<RepoConfigResponse>(res);
+}
+
+export async function updateRepoConfig(
+  repoId: string,
+  config: SquadConfigDto
+): Promise<RepoConfigResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config } satisfies UpdateRepoConfigRequest),
+  });
+  return handleResponse<RepoConfigResponse>(res);
 }

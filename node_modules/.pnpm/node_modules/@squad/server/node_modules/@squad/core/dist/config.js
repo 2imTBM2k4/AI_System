@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+const DIRECT_RUNNER = resolve(dirname(fileURLToPath(import.meta.url)), '../bin/direct-runner.mjs');
 export const CLI_PRESETS = {
     claude: [
         'claude',
@@ -21,6 +23,22 @@ export const CLI_PRESETS = {
         '{{prompt}}',
     ],
     gemini: ['gemini', '--yolo', '--model', '{{model}}', '-p', '{{prompt}}'],
+    '9router': [
+        process.execPath,
+        DIRECT_RUNNER,
+        '--model',
+        '{{model}}',
+        '--prompt',
+        '{{prompt}}',
+    ],
+    openrouter: [
+        process.execPath,
+        DIRECT_RUNNER,
+        '--model',
+        '{{model}}',
+        '--prompt',
+        '{{prompt}}',
+    ],
 };
 export const AgentSpecSchema = z
     .object({

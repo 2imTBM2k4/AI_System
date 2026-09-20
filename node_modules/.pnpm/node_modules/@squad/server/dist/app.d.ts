@@ -1,9 +1,11 @@
 import { type FastifyInstance } from 'fastify';
 import { RepoRegistry, type RegisteredRepo } from './registry.js';
 import { RunsManager } from './runs-manager.js';
+import { ProvidersManager } from './providers-manager.js';
 export interface SquadServerOptions {
     registry?: RepoRegistry;
     runsManager?: RunsManager;
+    providersManager?: ProvidersManager;
     logger?: boolean;
 }
 export interface ReconciliationFailure {

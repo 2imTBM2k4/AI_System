@@ -3,6 +3,8 @@ import { reconcileOrphanedTasks } from '@squad/core';
 import { RegistryError, RepoRegistry } from './registry.js';
 import { RunsManager } from './runs-manager.js';
 import { registerRunsRoutes } from './routes/runs.js';
+import { ProvidersManager } from './providers-manager.js';
+import { registerProvidersRoutes } from './routes/providers.js';
 /** Reconciles every registered repository before the server starts accepting requests. */
 export async function reconcileRegisteredRepos(registry) {
     const failures = [];
@@ -24,6 +26,7 @@ export async function buildServer(options = {}) {
     const ownsRegistry = options.registry === undefined;
     const registry = options.registry ?? await RepoRegistry.open();
     const runsManager = options.runsManager ?? new RunsManager(registry);
+    const providersManager = options.providersManager ?? new ProvidersManager();
     const app = Fastify({ logger: options.logger ?? false });
     const reconciliationFailures = await reconcileRegisteredRepos(registry);
     for (const failure of reconciliationFailures) {
@@ -52,6 +55,7 @@ export async function buildServer(options = {}) {
         }
     });
     await registerRunsRoutes(app, { runsManager });
+    await registerProvidersRoutes(app, { registry, providersManager });
     app.addHook('onClose', async () => {
         await runsManager.close();
         if (ownsRegistry) {

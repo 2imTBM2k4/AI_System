@@ -3,10 +3,13 @@ import { reconcileOrphanedTasks } from '@squad/core';
 import { RegistryError, RepoRegistry, type RegisteredRepo } from './registry.js';
 import { RunsManager } from './runs-manager.js';
 import { registerRunsRoutes } from './routes/runs.js';
+import { ProvidersManager } from './providers-manager.js';
+import { registerProvidersRoutes } from './routes/providers.js';
 
 export interface SquadServerOptions {
   registry?: RepoRegistry;
   runsManager?: RunsManager;
+  providersManager?: ProvidersManager;
   logger?: boolean;
 }
 
@@ -38,6 +41,7 @@ export async function buildServer(options: SquadServerOptions = {}): Promise<Fas
   const ownsRegistry = options.registry === undefined;
   const registry = options.registry ?? await RepoRegistry.open();
   const runsManager = options.runsManager ?? new RunsManager(registry);
+  const providersManager = options.providersManager ?? new ProvidersManager();
   const app = Fastify({ logger: options.logger ?? false });
 
   const reconciliationFailures = await reconcileRegisteredRepos(registry);
@@ -76,6 +80,7 @@ export async function buildServer(options: SquadServerOptions = {}): Promise<Fas
   );
 
   await registerRunsRoutes(app, { runsManager });
+  await registerProvidersRoutes(app, { registry, providersManager });
 
   app.addHook('onClose', async () => {
     await runsManager.close();

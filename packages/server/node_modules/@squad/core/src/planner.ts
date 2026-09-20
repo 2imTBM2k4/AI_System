@@ -81,19 +81,39 @@ export async function repoOverview(repoPath: string): Promise<RepoOverview> {
   return { fileCount: files.length, tree: tree || '(no tracked files)' };
 }
 
-/** Extracts the first balanced JSON object after removing Markdown code fences. */
+/** Extracts a balanced JSON object from agent output, filtering out reasoning tags and prioritizing objects containing "tasks". */
 export function extractJson(text: string): string {
-  const withoutFences = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '');
-  const start = withoutFences.indexOf('{');
-  if (start === -1) {
-    throw new PlanError('Planner output does not contain a JSON object.');
+  // 1. Remove reasoning / thinking tags common in reasoning models (DeepSeek-R1, Nemotron, QwQ, etc.)
+  const cleaned = text
+    .replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+    .trim();
+
+  // 2. Check for explicit ```json ... ``` or ``` ... ``` code fences first
+  const fenceMatches = [...cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
+  for (const match of fenceMatches) {
+    const candidate = match[1].trim();
+    if (candidate.startsWith('{') && candidate.endsWith('}')) {
+      try {
+        const obj = JSON.parse(candidate);
+        if (obj && typeof obj === 'object' && Array.isArray(obj.tasks)) {
+          return candidate;
+        }
+      } catch {}
+    }
   }
+
+  // 3. Extract all top-level balanced JSON objects
+  const target = cleaned.includes('{') ? cleaned : text;
+  const candidates: string[] = [];
 
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let index = start; index < withoutFences.length; index += 1) {
-    const character = withoutFences[index];
+  let start = -1;
+
+  for (let index = 0; index < target.length; index += 1) {
+    const character = target[index];
     if (inString) {
       if (escaped) {
         escaped = false;
@@ -108,16 +128,45 @@ export function extractJson(text: string): string {
     if (character === '"') {
       inString = true;
     } else if (character === '{') {
+      if (depth === 0) {
+        start = index;
+      }
       depth += 1;
     } else if (character === '}') {
       depth -= 1;
-      if (depth === 0) {
-        return withoutFences.slice(start, index + 1);
+      if (depth === 0 && start !== -1) {
+        candidates.push(target.slice(start, index + 1));
+        start = -1;
       }
     }
   }
 
-  throw new PlanError('Planner output contains an unterminated JSON object.');
+  if (candidates.length === 0) {
+    if (start !== -1) {
+      throw new PlanError('Planner output contains an unterminated JSON object.');
+    }
+    throw new PlanError('Planner output does not contain a JSON object.');
+  }
+
+  // 4. Prioritize candidate that parses successfully and contains tasks
+  for (const cand of candidates) {
+    try {
+      const obj = JSON.parse(cand);
+      if (obj && typeof obj === 'object' && Array.isArray(obj.tasks)) {
+        return cand;
+      }
+    } catch {}
+  }
+
+  // 5. Fall back to first candidate that is valid JSON
+  for (const cand of candidates) {
+    try {
+      JSON.parse(cand);
+      return cand;
+    } catch {}
+  }
+
+  return candidates[0];
 }
 
 /** Parses, validates, and completes an agent-generated plan. */

@@ -166,3 +166,66 @@ export type SquadEventDto =
   | { type: 'task:log'; runId: string; taskId: string; chunk: string }
   | { type: 'task:done'; runId: string; result: TaskResultDto }
   | { type: 'run:done'; runId: string; results: TaskResultDto[] };
+
+export interface AgentSpecDto {
+  cli?: string;
+  model?: string;
+  command?: string[];
+  env?: Record<string, string>;
+  promptFile?: string;
+}
+
+export interface SquadConfigDto {
+  configVersion?: number;
+  baseBranch: string;
+  integrationBranch: string;
+  worktreeDir?: string;
+  dbFile?: string;
+  planFile?: string;
+  logDir?: string;
+  maxParallel: number;
+  timeoutMinutes: number;
+  bootstrap?: string[];
+  copyFiles?: string[];
+  verify?: string[];
+  agents: Record<string, AgentSpecDto>;
+}
+
+export interface ProviderConfigDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+  customModels?: string[];
+}
+
+export interface GetProvidersResponse {
+  providers: ProviderConfigDto[];
+}
+
+export interface SaveProvidersRequest {
+  providers: ProviderConfigDto[];
+}
+
+export interface TestProviderRequest {
+  providerId: string;
+  baseUrl?: string;
+  apiKey?: string;
+}
+
+export interface TestProviderResponse {
+  success: boolean;
+  latencyMs: number;
+  models: string[];
+  error?: string;
+}
+
+export interface RepoConfigResponse {
+  config: SquadConfigDto;
+}
+
+export interface UpdateRepoConfigRequest {
+  config: SquadConfigDto;
+}
+

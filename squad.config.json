@@ -1,0 +1,106 @@
+{
+  "configVersion": 1,
+  "baseBranch": "main",
+  "integrationBranch": "squad/integration",
+  "worktreeDir": ".squad/worktrees",
+  "dbFile": ".squad/squad.db",
+  "planFile": ".squad/plan.json",
+  "logDir": ".squad/logs",
+  "maxParallel": 3,
+  "timeoutMinutes": 30,
+  "bootstrap": [],
+  "copyFiles": [],
+  "verify": [],
+  "agents": {
+    "default": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "ANTHROPIC_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4",
+        "OPENAI_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4"
+      }
+    },
+    "planner": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "OPENAI_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4",
+        "ANTHROPIC_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4"
+      }
+    },
+    "backend": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "OPENAI_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4",
+        "ANTHROPIC_API_KEY": "sk-9fb0248583743dd1-54ox4z-27d6bba4"
+      }
+    },
+    "frontend": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "OPENAI_API_KEY": "sk-9router",
+        "ANTHROPIC_API_KEY": "sk-9router"
+      }
+    },
+    "tester": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "OPENAI_API_KEY": "sk-9router",
+        "ANTHROPIC_API_KEY": "sk-9router"
+      }
+    }
+  }
+}

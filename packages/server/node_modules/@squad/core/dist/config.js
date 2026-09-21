@@ -62,6 +62,8 @@ export const SquadConfigSchema = z
     logDir: z.string().default('.squad/logs'),
     maxParallel: z.number().int().min(1).max(10).default(3),
     timeoutMinutes: z.number().int().min(1).default(30),
+    executionMode: z.enum(['direct', 'worktree']).default('worktree'),
+    maxReviewRounds: z.number().int().min(0).max(5).default(0),
     bootstrap: z.array(z.string()).default([]),
     copyFiles: z.array(z.string()).default([]),
     verify: z.array(z.string()).default([]),

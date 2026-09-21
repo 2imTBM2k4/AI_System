@@ -10,6 +10,9 @@ class MockEventSource {
   public onopen: (() => void) | null = null;
   public onerror: (() => void) | null = null;
   public onmessage: ((e: { data: string }) => void) | null = null;
+  public addEventListener = vi.fn();
+  public removeEventListener = vi.fn();
+  public readyState: number = 0;
 
   static instances: MockEventSource[] = [];
 
@@ -145,6 +148,32 @@ describe('useSquadEvents lifecycle and EventSource leak prevention', () => {
     });
 
     // Run đã kết thúc -> không mở SSE delta
+    expect(MockEventSource.instances.length).toBe(0);
+  });
+
+  it('does not open EventSource if run is in planned state (not started yet)', async () => {
+    vi.spyOn(apiClient, 'getRunDetail').mockResolvedValue({
+      run: {
+        id: 'run-planned',
+        repoPath: '/dummy',
+        goal: 'Planned run',
+        plan: null,
+        pid: null,
+        status: 'planned',
+        createdAt: new Date().toISOString(),
+        endedAt: null,
+      },
+      tasks: [],
+    });
+
+    const { result } = renderHook(() => useSquadEvents('run-planned'));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.run?.id).toBe('run-planned');
+    });
+
+    // Run mới chỉ planned -> không mở SSE delta
     expect(MockEventSource.instances.length).toBe(0);
   });
 });

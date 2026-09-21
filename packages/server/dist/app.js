@@ -54,6 +54,41 @@ export async function buildServer(options = {}) {
             throw error;
         }
     });
+    app.post('/repos/detect', {
+        schema: {
+            body: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['path'],
+                properties: { path: { type: 'string', minLength: 1 } },
+            },
+        },
+    }, async (request, reply) => {
+        const { access } = await import('node:fs/promises');
+        const { join, resolve } = await import('node:path');
+        const repoPath = resolve(request.body.path);
+        const lockFiles = [
+            { file: 'pnpm-lock.yaml', pm: 'pnpm' },
+            { file: 'yarn.lock', pm: 'yarn' },
+            { file: 'package-lock.json', pm: 'npm' },
+        ];
+        for (const { file, pm } of lockFiles) {
+            try {
+                await access(join(repoPath, file));
+                return reply.code(200).send({
+                    packageManager: pm,
+                    bootstrap: [`${pm} install`],
+                });
+            }
+            catch {
+                // not found, continue
+            }
+        }
+        return reply.code(200).send({
+            packageManager: null,
+            bootstrap: [],
+        });
+    });
     await registerRunsRoutes(app, { runsManager });
     await registerProvidersRoutes(app, { registry, providersManager });
     app.addHook('onClose', async () => {

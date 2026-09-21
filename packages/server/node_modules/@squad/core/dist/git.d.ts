@@ -25,4 +25,6 @@ export declare function listChangedFiles(repoPath: string): Promise<string[]>;
 export declare function commitAll(repoPath: string, message: string): Promise<string | undefined>;
 export declare function mergeBranch(repoPath: string, branch: string): Promise<void>;
 export declare function abortMerge(repoPath: string): Promise<void>;
+/** Reverts all tracked modifications and deletes all untracked files in the working tree. */
+export declare function rollbackWorkingTree(repoPath: string): Promise<void>;
 //# sourceMappingURL=git.d.ts.map

@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, Play, CheckCircle2, XCircle, Clock, RefreshCw } from 'lucide-react';
 import type { RunRecordDto } from '@squad/shared-types';
+import { GlassBadge } from '../glass/GlassBadge';
 
 interface SidebarProps {
   runs: RunRecordDto[];
@@ -19,67 +20,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
     switch (status) {
       case 'running':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full animate-pulse">
-            <Play className="w-3 h-3 fill-amber-400" />
-            running
-          </span>
+          <GlassBadge variant="amber" dot pulse>
+            <Play className="w-2.5 h-2.5 fill-amber-500 dark:fill-amber-400" />
+            <span>running</span>
+          </GlassBadge>
         );
       case 'completed':
       case 'passed':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-            <CheckCircle2 className="w-3 h-3" />
-            done
-          </span>
+          <GlassBadge variant="emerald" dot>
+            <CheckCircle2 className="w-2.5 h-2.5" />
+            <span>done</span>
+          </GlassBadge>
         );
       case 'failed':
       case 'error':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
-            <XCircle className="w-3 h-3" />
-            failed
-          </span>
+          <GlassBadge variant="rose" dot>
+            <XCircle className="w-2.5 h-2.5" />
+            <span>failed</span>
+          </GlassBadge>
         );
       case 'planned':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-full">
-            <Clock className="w-3 h-3" />
-            planned
-          </span>
+          <GlassBadge variant="cyan" dot>
+            <Clock className="w-2.5 h-2.5" />
+            <span>planned</span>
+          </GlassBadge>
         );
       default:
         return (
-          <span className="text-[11px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full">
-            {status}
-          </span>
+          <GlassBadge variant="neutral">
+            <span>{status}</span>
+          </GlassBadge>
         );
     }
   };
 
   return (
-    <aside className="w-72 border-r border-zinc-800/80 bg-zinc-900/40 flex flex-col shrink-0 h-[calc(100vh-4rem)]">
-      <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+    <aside className="w-72 border-r border-black/[0.06] dark:border-white/[0.07] bg-white/50 dark:bg-zinc-950/40 backdrop-blur-xl flex flex-col shrink-0 h-[calc(100vh-4rem)] relative z-20 transition-colors duration-200">
+      {/* Sidebar Header */}
+      <div className="p-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-zinc-400" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+          <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
             Lịch sử Runs ({runs.length})
           </h2>
         </div>
         <button
           type="button"
           onClick={onRefresh}
-          className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="p-1.5 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all active:rotate-180 duration-300 cursor-pointer"
           title="Làm mới lịch sử"
         >
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* Runs List */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         {runs.length === 0 ? (
-          <div className="text-center py-10 px-4">
-            <Clock className="w-8 h-8 mx-auto text-zinc-600 mb-2" />
-            <p className="text-xs text-zinc-400">Chưa có run nào trên repo này</p>
+          <div className="text-center py-12 px-4 rounded-xl border border-dashed border-black/[0.08] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01]">
+            <Clock className="w-8 h-8 mx-auto text-zinc-400 dark:text-zinc-600 mb-2" />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Chưa có run nào trên repo này</p>
           </div>
         ) : (
           runs.map((run) => {
@@ -96,27 +99,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={run.id}
                 type="button"
                 onClick={() => onSelectRun(run.id)}
-                className={`w-full text-left p-3 rounded-xl border transition-all ${
+                className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 cursor-pointer relative overflow-hidden backdrop-blur-md select-none ${
                   isSelected
-                    ? 'bg-zinc-800/90 border-indigo-500/60 shadow-lg shadow-indigo-500/5'
-                    : 'bg-zinc-900/50 border-zinc-800/60 hover:bg-zinc-800/50 hover:border-zinc-700/60'
+                    ? 'bg-indigo-50/90 dark:bg-indigo-500/[0.12] border-indigo-400 dark:border-indigo-500/50 shadow-[0_4px_20px_rgba(99,102,241,0.12)] ring-1 ring-indigo-500/30'
+                    : 'bg-white/60 dark:bg-white/[0.025] border-black/[0.06] dark:border-white/[0.06] hover:bg-white/90 dark:hover:bg-white/[0.06] hover:border-black/15 dark:hover:border-white/[0.14]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-mono text-xs font-semibold text-zinc-300">
+                {/* Specular edge for selected run card */}
+                {isSelected && (
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 dark:via-indigo-300/40 to-transparent pointer-events-none"
+                  />
+                )}
+
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-xs font-bold text-zinc-800 dark:text-zinc-300">
                     #{shortId}
                   </span>
                   {getStatusBadge(run.status)}
                 </div>
 
-                <p className="text-xs text-zinc-300 line-clamp-2 font-medium mb-2">
+                <p className="text-xs text-zinc-800 dark:text-zinc-200 line-clamp-2 font-medium mb-2.5 leading-snug">
                   {run.goal || 'Không có mô tả mục tiêu'}
                 </p>
 
-                <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-mono pt-1 border-t border-black/[0.05] dark:border-white/[0.04]">
                   <span>{dateStr}</span>
                   {run.plan?.tasks && (
-                    <span>{run.plan.tasks.length} tasks</span>
+                    <span className="px-1.5 py-0.5 rounded bg-black/[0.03] dark:bg-white/[0.04] text-zinc-600 dark:text-zinc-400 border border-black/[0.05] dark:border-white/[0.05]">
+                      {run.plan.tasks.length} tasks
+                    </span>
                   )}
                 </div>
               </button>

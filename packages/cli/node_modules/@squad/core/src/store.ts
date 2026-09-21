@@ -115,6 +115,9 @@ const taskIdForEvent = (event: SquadEvent): string | null => {
       return event.taskId;
     case 'task:done':
       return event.result.id;
+    case 'review:start':
+    case 'review:log':
+    case 'review:done':
     case 'run:start':
     case 'run:done':
       return null;

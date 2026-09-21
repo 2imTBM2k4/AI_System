@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import {
@@ -12,10 +12,11 @@ import {
   resolveSquadPaths,
   type LoadedSquadConfig,
 } from './config.js';
-import { commitAll, createWorktree, listChangedFiles } from './git.js';
+import { commitAll, createWorktree, listChangedFiles, removeWorktree, rollbackWorkingTree, runGit } from './git.js';
 import { mergeRun, type MergeReport } from './merge.js';
 import {
   buildPlannerPrompt,
+  extractJson,
   fileConflicts,
   parsePlanOutput,
   repoOverview,
@@ -23,7 +24,7 @@ import {
   type FileConflict,
 } from './planner.js';
 import { SquadStore } from './store.js';
-import type { Plan, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
+import type { Plan, ReviewResult, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
 
 interface ActiveTask {
   child?: ChildProcess;
@@ -167,6 +168,15 @@ export class SquadOrchestrator extends EventEmitter {
       );
       this.emit('run:start', { type: 'run:start', runId, plan } satisfies SquadEvent);
 
+      const isDirect = config.config.executionMode !== 'worktree';
+      if (isDirect) {
+        try {
+          await commitAll(repoPath, `squad: baseline before run ${runId}`);
+        } catch {
+          // ignore
+        }
+      }
+
       while (results.size < plan.tasks.length) {
         let progressed = false;
 
@@ -238,14 +248,17 @@ export class SquadOrchestrator extends EventEmitter {
         }
       }
 
-      const orderedResults = plan.tasks.map((task) => {
-        const result = results.get(task.id);
-        if (result === undefined) {
-          throw new Error(`Task ${task.id} did not produce a result.`);
-        }
+      if (isDirect && (config.config.maxReviewRounds ?? 0) > 0) {
+        await this.runQAReviewLoop(runId, repoPath, plan.goal, results, logPaths, paths.worktreeDir);
+      }
 
-        return result;
-      });
+      const orderedResults = plan.tasks.map((task) => results.get(task.id)).filter((r): r is TaskResult => r !== undefined);
+      for (const [id, res] of results.entries()) {
+        if (!orderedResults.some((r) => r.id === id)) {
+          orderedResults.push(res);
+        }
+      }
+
       store.completeRun(runId, 'completed', orderedResults);
       this.emit('run:done', { type: 'run:done', runId, results: orderedResults } satisfies SquadEvent);
       return orderedResults;
@@ -275,7 +288,8 @@ export class SquadOrchestrator extends EventEmitter {
     const activeTask: ActiveTask = { cancelled: false, finalized: false };
     const startedAt = new Date().toISOString();
     const logChunks: string[] = [];
-    const worktreePath = resolve(worktreeRoot, runId, task.id);
+    const isDirect = this.options.config.config.executionMode !== 'worktree';
+    const targetDir = isDirect ? repoPath : resolve(worktreeRoot, runId, task.id);
     let status: TaskStatus = 'error';
     let errorMessage: string | undefined;
     let changedFiles: string[] | undefined;
@@ -291,15 +305,23 @@ export class SquadOrchestrator extends EventEmitter {
     this.emit('task:start', { type: 'task:start', runId, taskId: task.id } satisfies SquadEvent);
 
     try {
-      await mkdir(dirname(worktreePath), { recursive: true });
-      await createWorktree(
-        repoPath,
-        worktreePath,
-        task.branch,
-        this.options.config.config.baseBranch,
-      );
-      await this.copyConfiguredFiles(worktreePath);
-      await this.runBootstrap(runId, task.id, worktreePath, logPath, logChunks, activeTask);
+      if (!isDirect) {
+        await mkdir(dirname(targetDir), { recursive: true });
+        try {
+          await removeWorktree(repoPath, targetDir);
+        } catch {
+          // Ignore if worktree was not attached
+        }
+        await rm(targetDir, { recursive: true, force: true });
+        await createWorktree(
+          repoPath,
+          targetDir,
+          task.branch,
+          this.options.config.config.baseBranch,
+        );
+        await this.copyConfiguredFiles(targetDir);
+      }
+      await this.runBootstrap(runId, task.id, targetDir, logPath, logChunks, activeTask);
       setupComplete = true;
 
       if (activeTask.cancelled) {
@@ -307,7 +329,21 @@ export class SquadOrchestrator extends EventEmitter {
       } else {
         const agent = await resolveAgent(this.options.config, task.role);
         agentName = agent.spec.cli ?? agent.spec.command?.[0];
-        const prompt = renderAgentPrompt(agent, task.prompt);
+
+        const targetFileList = task.files.length > 0
+          ? `\n\nTarget Files for this task:\n${task.files.map((f) => `- ${f}`).join('\n')}\n`
+          : '';
+
+        const strictGuidelines = `
+[TASK CONSTRAINTS & CODING GUIDELINES]
+1. TARGET FILES: Focus strictly on the assigned target files. Do NOT modify, delete, or rewrite root configuration files (package.json, squad.config.json, tsconfig.json, vite.config.ts) unless specifically instructed.
+2. TYPESCRIPT COMPILATION: Follow strict TypeScript rules. Every import must be used (no TS6133 unused variables/imports). Do NOT import React unless explicitly needed.
+3. DEPENDENCIES: Never import packages that do not exist in package.json. If utility functions (e.g. cn class merging) are needed, check existing files (e.g. apps/web/src/lib/utils.ts) or implement lightweight pure TypeScript helpers without adding uninstalled third-party packages.
+4. SYSTEM CONTINUITY: Keep the existing application components, UI shell, and routing intact. Integrate new visual styling or primitives harmoniously into the current layout without blanking out working features.
+`;
+
+        const taskPromptWithScope = `${task.prompt}${targetFileList}${strictGuidelines}`;
+        const prompt = renderAgentPrompt(agent, taskPromptWithScope);
         const command = renderAgentCommand(agent, prompt);
         const agentResult = await this.runProcess(
           runId,
@@ -317,7 +353,7 @@ export class SquadOrchestrator extends EventEmitter {
           activeTask,
           command[0],
           command.slice(1),
-          worktreePath,
+          targetDir,
           agent.spec.env,
           false,
           true,
@@ -345,7 +381,7 @@ export class SquadOrchestrator extends EventEmitter {
               activeTask,
               verifyCommand,
               [],
-              worktreePath,
+              targetDir,
               undefined,
               true,
             );
@@ -366,20 +402,52 @@ export class SquadOrchestrator extends EventEmitter {
       }
 
       if (status === 'passed') {
-        changedFiles = await listChangedFiles(worktreePath);
-        await commitAll(worktreePath, `squad(${task.id}): ${task.title}`);
+        changedFiles = await listChangedFiles(targetDir);
+        await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
+      } else if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+          const rollbackMsg = `\n[squad:direct] Task ${task.id} did not pass verification (${status}). Rolled back working tree to clean state.\n`;
+          logChunks.push(rollbackMsg);
+          appendFileSync(logPath, rollbackMsg, 'utf8');
+          const event: SquadEvent = {
+            type: 'task:log',
+            runId,
+            taskId: task.id,
+            chunk: rollbackMsg,
+          };
+          this.options.store.appendEvent(event);
+          this.emit('task:log', event);
+        } catch {
+          // ignore rollback error
+        }
       }
     } catch (error) {
       status = activeTask.cancelled ? 'cancelled' : setupComplete ? 'error' : 'bootstrap_failed';
       errorMessage = this.errorMessage(error);
+      if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+        } catch {
+          // ignore
+        }
+      }
     }
 
     if (status === 'cancelled') {
-      try {
-        changedFiles = await listChangedFiles(worktreePath);
-        await commitAll(worktreePath, `squad(${task.id}): WIP (cancelled by user)`);
-      } catch (error) {
-        errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
+      if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          changedFiles = await listChangedFiles(targetDir);
+          await commitAll(targetDir, `squad(${task.id}): WIP (cancelled by user)`);
+        } catch (error) {
+          errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
+        }
       }
     }
 
@@ -616,6 +684,187 @@ export class SquadOrchestrator extends EventEmitter {
       endedAt: timestamp,
       error,
     };
+  }
+
+  private async runQAReviewLoop(
+    runId: string,
+    repoPath: string,
+    goal: string,
+    results: Map<string, TaskResult>,
+    logPaths: Map<string, string>,
+    worktreeRoot: string,
+  ): Promise<void> {
+    const { config, store } = this.options;
+    const maxRounds = config.config.maxReviewRounds ?? 2;
+    if (maxRounds <= 0) {
+      return;
+    }
+
+    const paths = resolveSquadPaths(config);
+
+    for (let round = 1; round <= maxRounds; round++) {
+      this.emit('review:start', { type: 'review:start', runId, round } satisfies SquadEvent);
+
+      let verifySummary = 'No verify command configured.';
+      let verifyPassed = true;
+      const verifyCommands = config.config.verify;
+      if (verifyCommands.length > 0) {
+        try {
+          const verifyOutputChunks: string[] = [];
+          const activeTask: ActiveTask = { cancelled: false, finalized: false };
+          const verifyLogPath = resolve(paths.logDir, runId, `review-${round}-verify.log`);
+          const verifyResult = await this.spawnProcess(
+            verifyCommands.join(' && '),
+            [],
+            repoPath,
+            undefined,
+            true,
+            activeTask,
+            (chunk) => {
+              const text = chunk.toString();
+              verifyOutputChunks.push(text);
+              try {
+                appendFileSync(verifyLogPath, text, 'utf8');
+              } catch {}
+              this.emit('review:log', { type: 'review:log', runId, round, chunk: text } satisfies SquadEvent);
+            },
+          );
+          verifyPassed = verifyResult.exitCode === 0 && !verifyResult.timedOut;
+          verifySummary = `Verify (${verifyCommands.join(' && ')}): ${verifyPassed ? 'PASSED' : 'FAILED'}\nOutput:\n${verifyOutputChunks.join('').slice(-2000)}`;
+        } catch (err) {
+          verifyPassed = false;
+          verifySummary = `Verify error: ${this.errorMessage(err)}`;
+        }
+      }
+
+      let gitSummary = '';
+      try {
+        const { stdout: statusOut } = await runGit(repoPath, ['status', '--short']);
+        gitSummary = `Git status:\n${statusOut.slice(0, 1500)}`;
+      } catch {
+        gitSummary = '';
+      }
+
+      const reviewerAgent = await resolveAgent(config, 'reviewer');
+      const taskResultsSummary = [...results.values()]
+        .map((r) => `- [${r.status.toUpperCase()}] ${r.id}: ${r.title} ${r.error ? `(Error: ${r.error})` : ''}`)
+        .join('\n');
+
+      const reviewPrompt = `Bạn là Lead QA / Inspector chịu trách nhiệm nghiệm thu kết quả dự án.
+
+MỤC TIÊU BAN ĐẦU:
+${goal}
+
+KẾT QUẢ CÁC TASK ĐÃ THỰC HIỆN:
+${taskResultsSummary}
+
+KẾT QUẢ KIỂM THỬ / BUILD HỆ THỐNG:
+${verifySummary}
+
+${gitSummary}
+
+VÒNG NGHIỆM THU: ${round}/${maxRounds}
+
+NHIỆM VỤ CỦA BẠN:
+1. Đánh giá xem mục tiêu ban đầu đã được hoàn thành đầy đủ, chính xác và không còn lỗi chưa.
+2. Nếu TẤT CẢ đã hoàn thành tốt, không còn lỗi: trả về status "passed" và tóm tắt ngắn gọn.
+3. Nếu phát hiện lỗi hoặc thiếu sót: trả về status "needs_fix" kèm danh sách các "fixTasks" cụ thể để các agent sửa chữa. Mỗi fix task cần ghi rõ role, files, prompt chi tiết và verify.
+
+CHỈ TRẢ VỀ JSON THUẦN:
+{
+  "status": "passed",
+  "summary": "Tất cả yêu cầu đã được đáp ứng."
+}
+HOẶC:
+{
+  "status": "needs_fix",
+  "summary": "Phát hiện lỗi ...",
+  "fixTasks": [
+    {
+      "id": "fix-${round}-1",
+      "title": "Tên công việc sửa lỗi",
+      "role": "frontend",
+      "files": ["path/to/file"],
+      "prompt": "Hướng dẫn chi tiết sửa lỗi...",
+      "verify": "lệnh shell kiểm tra lại hoặc bỏ trống"
+    }
+  ]
+}`;
+
+      const renderedPrompt = renderAgentPrompt(reviewerAgent, reviewPrompt);
+      const command = renderAgentCommand(reviewerAgent, renderedPrompt);
+      const qaOutputChunks: string[] = [];
+      const qaActiveTask: ActiveTask = { cancelled: false, finalized: false };
+      const qaLogPath = resolve(paths.logDir, runId, `review-${round}.log`);
+
+      try {
+        await this.spawnProcess(
+          command[0],
+          command.slice(1),
+          repoPath,
+          reviewerAgent.spec.env,
+          false,
+          qaActiveTask,
+          (chunk) => {
+            const text = chunk.toString();
+            qaOutputChunks.push(text);
+            try {
+              appendFileSync(qaLogPath, text, 'utf8');
+            } catch {}
+            this.emit('review:log', { type: 'review:log', runId, round, chunk: text } satisfies SquadEvent);
+          },
+        );
+      } catch {
+        // Fallback if reviewer process fails
+      }
+
+      const qaOutputText = qaOutputChunks.join('');
+      let parsedReview: ReviewResult = { status: 'passed', summary: 'QA review passed.' };
+      try {
+        const jsonStr = extractJson(qaOutputText);
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.status === 'needs_fix' && Array.isArray(parsed.fixTasks) && parsed.fixTasks.length > 0) {
+          parsedReview = {
+            status: 'needs_fix',
+            summary: parsed.summary || 'QA phát hiện các điểm cần khắc phục.',
+            fixTasks: parsed.fixTasks.map((t: any, idx: number) => ({
+              id: t.id || `fix-${round}-${idx + 1}`,
+              title: t.title || `Khắc phục lỗi #${idx + 1}`,
+              role: t.role || 'default',
+              files: Array.isArray(t.files) ? t.files : [],
+              dependsOn: [],
+              prompt: t.prompt || '',
+              verify: t.verify,
+              branch: `squad/fix-${round}-${idx + 1}`,
+            })),
+          };
+        } else {
+          parsedReview = {
+            status: 'passed',
+            summary: parsed.summary || (verifyPassed ? 'Tất cả yêu cầu đã được đáp ứng và kiểm thử thành công.' : 'QA hoàn tất đánh giá.'),
+          };
+        }
+      } catch {
+        parsedReview = {
+          status: verifyPassed ? 'passed' : 'needs_fix',
+          summary: qaOutputText.slice(0, 300) || 'QA review hoàn thành.',
+        };
+      }
+
+      this.emit('review:done', { type: 'review:done', runId, round, result: parsedReview } satisfies SquadEvent);
+
+      if (parsedReview.status === 'passed' || !parsedReview.fixTasks || parsedReview.fixTasks.length === 0) {
+        break;
+      }
+
+      for (const fixTask of parsedReview.fixTasks) {
+        const fixLogPath = resolve(paths.logDir, runId, `${fixTask.id}.log`);
+        logPaths.set(fixTask.id, fixLogPath);
+        store.createTask(runId, fixTask, fixLogPath);
+        const taskRes = await this.executeTask(runId, repoPath, fixTask, fixLogPath, worktreeRoot);
+        results.set(fixTask.id, taskRes);
+      }
+    }
   }
 
   private processFailureMessage(result: ProcessResult): string {

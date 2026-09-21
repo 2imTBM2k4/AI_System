@@ -28,8 +28,6 @@ export async function mergeRun(options: MergeRunOptions): Promise<MergeReport> {
   }
 
   const { config } = options.config;
-  await prepareIntegrationBranch(run.repoPath, config.baseBranch, config.integrationBranch);
-
   const recordsById = new Map(options.store.listTasks(options.runId).map((record) => [record.id, record]));
   const report: MergeReport = {
     runId: options.runId,
@@ -39,6 +37,21 @@ export async function mergeRun(options: MergeRunOptions): Promise<MergeReport> {
     verifyFailed: [],
     notMerged: [],
   };
+
+  if (config.executionMode === 'direct') {
+    for (const task of topoSort(run.plan.tasks)) {
+      const record = recordsById.get(task.id);
+      const status = record === undefined ? 'error' : asTaskStatus(record.status);
+      if (status === 'passed') {
+        report.merged.push({ id: task.id, branch: task.branch });
+      } else {
+        report.notMerged.push({ id: task.id, branch: task.branch, reason: status });
+      }
+    }
+    return report;
+  }
+
+  await prepareIntegrationBranch(run.repoPath, config.baseBranch, config.integrationBranch);
 
   for (const task of topoSort(run.plan.tasks)) {
     const record = recordsById.get(task.id);

@@ -94,7 +94,7 @@ export declare const PlanSchema: z.ZodObject<{
         branch?: string | undefined;
     }[];
 }>;
-/** Builds the exact planning prompt specified by the roadmap. */
+/** Builds the planning prompt for roadmap execution. */
 export declare function buildPlannerPrompt(cfg: SquadConfig, goal: string, overview: RepoOverview): string;
 /** Summarizes tracked files without reading repository contents. */
 export declare function repoOverview(repoPath: string): Promise<RepoOverview>;

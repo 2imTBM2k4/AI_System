@@ -1,4 +1,4 @@
-import { useReducer, useEffect } from 'react';
+import { useReducer, useEffect, useState, useCallback } from 'react';
 import type {
   RunRecordDto,
   TaskRecordDto,
@@ -68,6 +68,23 @@ export function squadReducer(state: SquadState, action: SquadAction): SquadState
       for (const t of action.payload.tasks) {
         taskMap[t.id] = t;
       }
+      if (action.payload.tasks.length === 0 && action.payload.run.plan?.tasks) {
+        for (const t of action.payload.run.plan.tasks) {
+          taskMap[t.id] = {
+            id: t.id,
+            runId: action.payload.run.id,
+            title: t.title,
+            role: t.role,
+            status: 'pending',
+            branch: t.branch,
+            logPath: '',
+            startedAt: null,
+            endedAt: null,
+            error: null,
+            pid: null,
+          };
+        }
+      }
       return {
         ...state,
         run: action.payload.run,
@@ -109,12 +126,12 @@ export function squadReducer(state: SquadState, action: SquadAction): SquadState
     }
 
     case 'TASK_LOG': {
-      const currentLogs = state.taskLogs[action.taskId] || [];
+      const existingLogs = state.taskLogs[action.taskId] || [];
       return {
         ...state,
         taskLogs: {
           ...state.taskLogs,
-          [action.taskId]: [...currentLogs, action.chunk],
+          [action.taskId]: [...existingLogs, action.chunk],
         },
       };
     }
@@ -151,7 +168,7 @@ export function squadReducer(state: SquadState, action: SquadAction): SquadState
       };
     }
 
-    case 'RUN_DONE': {
+    case 'RUN_DONE':
       return {
         ...state,
         run: state.run
@@ -163,7 +180,6 @@ export function squadReducer(state: SquadState, action: SquadAction): SquadState
           : null,
         isConnected: false,
       };
-    }
 
     case 'TASK_CANCELLED': {
       const existing = state.tasks[action.taskId];
@@ -188,6 +204,11 @@ export function squadReducer(state: SquadState, action: SquadAction): SquadState
 
 export function useSquadEvents(runId: string | null) {
   const [state, dispatch] = useReducer(squadReducer, initialState);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     if (!runId) {
@@ -208,8 +229,9 @@ export function useSquadEvents(runId: string | null) {
         if (!active) return;
         dispatch({ type: 'SNAPSHOT_LOADED', payload: detail });
 
-        // Nếu run đã kết thúc, không cần mở SSE
-        if (isRunEnded(detail.run)) {
+        // Chỉ mở SSE delta stream khi run đang thực sự chạy (status === 'running')
+        // Tránh mở stream cho run đã kết thúc hoặc chỉ mới ở trạng thái planned
+        if (detail.run.status !== 'running') {
           return;
         }
 
@@ -224,16 +246,20 @@ export function useSquadEvents(runId: string | null) {
 
         eventSource.onerror = () => {
           if (!active) return;
+          // Nếu eventSource đã bị đóng chủ động, không báo lỗi
+          if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+            return;
+          }
           dispatch({
             type: 'SSE_ERROR',
             error: 'Mất kết nối stream SSE, trình duyệt đang tự động kết nối lại...',
           });
         };
 
-        eventSource.onmessage = (e) => {
+        const handleMessage = (data: string) => {
           if (!active) return;
           try {
-            const event: SquadEventDto = JSON.parse(e.data);
+            const event: SquadEventDto = JSON.parse(data);
             switch (event.type) {
               case 'task:start':
                 dispatch({ type: 'TASK_START', taskId: event.taskId });
@@ -255,6 +281,14 @@ export function useSquadEvents(runId: string | null) {
             console.error('Lỗi phân tích SSE payload:', err);
           }
         };
+
+        eventSource.onmessage = (e) => handleMessage(e.data);
+        const sseEventTypes = ['run:start', 'task:start', 'task:log', 'task:done', 'run:done'];
+        for (const type of sseEventTypes) {
+          if (typeof eventSource.addEventListener === 'function') {
+            eventSource.addEventListener(type, ((e: MessageEvent) => handleMessage(e.data)) as EventListener);
+          }
+        }
       })
       .catch((err) => {
         if (!active || err.name === 'AbortError') return;
@@ -272,10 +306,11 @@ export function useSquadEvents(runId: string | null) {
         eventSource.close();
       }
     };
-  }, [runId]);
+  }, [runId, refreshKey]);
 
   return {
     ...state,
     dispatch,
+    refresh,
   };
 }

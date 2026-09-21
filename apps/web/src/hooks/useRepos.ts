@@ -50,10 +50,8 @@ export function useRepos() {
     refreshRuns();
   }, [refreshRuns]);
 
-  // Xác định active run (đang chạy hoặc đang chờ thực thi)
-  const activeRun = runs.find(
-    (r) => r.status === 'running' || r.status === 'planned'
-  ) || null;
+  // Xác định active run (chỉ tính những run đang thực sự chạy)
+  const activeRun = runs.find((r) => r.status === 'running') || null;
 
   return {
     repos,

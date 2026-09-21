@@ -42,6 +42,7 @@ export declare class SquadOrchestrator extends EventEmitter {
     private finalizeTask;
     private persistTaskResult;
     private createTerminalResult;
+    private runQAReviewLoop;
     private processFailureMessage;
     private errorMessage;
 }

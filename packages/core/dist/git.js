@@ -4,7 +4,8 @@ export class GitCommandError extends Error {
     exitCode;
     stderr;
     constructor(command, exitCode, stderr) {
-        super(`Git command failed: git ${command.join(' ')}`);
+        const detail = stderr.trim();
+        super(`Git command failed: git ${command.join(' ')}${detail ? `\n${detail}` : ''}`);
         this.name = 'GitCommandError';
         this.command = command;
         this.exitCode = exitCode;
@@ -14,7 +15,7 @@ export class GitCommandError extends Error {
 /** Runs Git without a shell so repository paths and arguments remain literal. */
 export async function runGit(cwd, args) {
     return new Promise((resolve, reject) => {
-        execFile('git', [...args], {
+        execFile('git', ['-c', 'core.longpaths=true', ...args], {
             cwd,
             encoding: 'utf8',
             maxBuffer: 10 * 1024 * 1024,
@@ -54,7 +55,7 @@ export async function createWorktree(repoPath, worktreePath, branch, baseBranch)
         'worktree',
         'add',
         '--no-track',
-        '-b',
+        '-B',
         branch,
         worktreePath,
         baseBranch,
@@ -62,7 +63,7 @@ export async function createWorktree(repoPath, worktreePath, branch, baseBranch)
 }
 /** Removes a clean worktree. It intentionally does not force-delete uncommitted work. */
 export async function removeWorktree(repoPath, worktreePath) {
-    await runGit(repoPath, ['worktree', 'remove', worktreePath]);
+    await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
     await runGit(repoPath, ['worktree', 'prune']);
 }
 /** Deletes a branch only when Git considers the deletion safe. */
@@ -105,5 +106,10 @@ export async function mergeBranch(repoPath, branch) {
 }
 export async function abortMerge(repoPath) {
     await runGit(repoPath, ['merge', '--abort']);
+}
+/** Reverts all tracked modifications and deletes all untracked files in the working tree. */
+export async function rollbackWorkingTree(repoPath) {
+    await runGit(repoPath, ['reset', '--hard', 'HEAD']);
+    await runGit(repoPath, ['clean', '-fd']);
 }
 //# sourceMappingURL=git.js.map

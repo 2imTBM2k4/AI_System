@@ -58,4 +58,4 @@ export {
   type StoredEvent,
   type TaskRecord,
 } from './store.js';
-export type { Plan, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
+export type { ExecutionMode, Plan, ReviewResult, ReviewStatus, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';

@@ -18,10 +18,11 @@ export const PlanTaskSchema = z.object({
     branch: z.string().optional(),
 });
 export const PlanSchema = z.object({ tasks: z.array(PlanTaskSchema).min(1).max(6) });
-/** Builds the exact planning prompt specified by the roadmap. */
+/** Builds the planning prompt for roadmap execution. */
 export function buildPlannerPrompt(cfg, goal, overview) {
     const roles = Object.keys(cfg.agents).filter((role) => role !== 'planner' && role !== 'default');
-    return `Bạn là Planner của một đội coding agent chạy SONG SONG trên các git worktree riêng biệt.
+    const isDirect = cfg.executionMode !== 'worktree';
+    return `Bạn là Planner điều phối một đội coding agent triển khai dự án theo Roadmap.
 
 MỤC TIÊU: ${goal}
 
@@ -31,12 +32,12 @@ ${overview.tree}
 ROLE CÓ THỂ GIAO VIỆC: ${roles.join(', ')}
 
 QUY TẮC:
-1. Hai task chạy song song TUYỆT ĐỐI không được sửa cùng 1 file. Không tách được thì đặt task sau vào "dependsOn".
-2. QUAN TRỌNG: "dependsOn" chỉ đảm bảo THỨ TỰ CHẠY, task sau KHÔNG thấy được code của task trước (worktree độc lập, merge diễn ra sau cùng). Nếu 1 task cần dùng trực tiếp code/API mà task khác vừa tạo ra, đừng tách 2 task — gộp lại thành 1.
-3. Mỗi task phải kiểm chứng độc lập được (test/build tự chạy ra đúng/sai).
-4. Tối đa 6 task.
-5. "files" liệt kê path/thư mục task sẽ chạm vào — dùng để phát hiện xung đột.
-6. "prompt" là chỉ thị đầy đủ, tự đứng một mình (agent không thấy mục tiêu gốc).
+1. Phân chia mục tiêu thành 1 đến 6 task theo một lộ trình (Roadmap) mạch lạc.
+2. Thiết lập "dependsOn" chính xác: task nào cần kết quả của task trước (ví dụ: tạo backend/schema trước, làm UI hoặc test sau) thì đưa id của task trước vào "dependsOn".${isDirect ? ' Các task sau sẽ kế thừa trực tiếp mã nguồn của các task trước đã làm.' : ''}
+3. Các task không phụ thuộc nhau có thể chạy độc lập và không được sửa trùng file.
+4. "files" liệt kê các path/thư mục task sẽ tạo hoặc chỉnh sửa.
+5. "prompt" là chỉ thị đầy đủ, tự đứng một mình, hướng dẫn rõ ràng file cần tạo hoặc sửa.
+6. Mỗi task có thể có "verify" là lệnh shell kiểm chứng (hoặc bỏ trống).
 
 CHỈ TRẢ VỀ JSON THUẦN:
 {"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh shell, hoặc bỏ trống"}]}`;

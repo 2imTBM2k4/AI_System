@@ -4,5 +4,5 @@ export { buildPlannerPrompt, detectCycle, extractJson, fileConflicts, parsePlanO
 export { mergeRun, type MergeReport } from './merge.js';
 export { reconcileOrphanedTasks, RunnerError, SquadOrchestrator, type SquadOrchestratorOptions, } from './runner.js';
 export { SquadStore, type RunRecord, type StoredEvent, type TaskRecord, } from './store.js';
-export type { Plan, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
+export type { ExecutionMode, Plan, ReviewResult, ReviewStatus, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
 //# sourceMappingURL=index.d.ts.map

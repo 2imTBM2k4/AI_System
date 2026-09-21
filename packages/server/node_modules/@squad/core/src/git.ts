@@ -11,7 +11,8 @@ export class GitCommandError extends Error {
   readonly stderr: string;
 
   constructor(command: readonly string[], exitCode: number | null, stderr: string) {
-    super(`Git command failed: git ${command.join(' ')}`);
+    const detail = stderr.trim();
+    super(`Git command failed: git ${command.join(' ')}${detail ? `\n${detail}` : ''}`);
     this.name = 'GitCommandError';
     this.command = command;
     this.exitCode = exitCode;
@@ -27,7 +28,7 @@ export async function runGit(
   return new Promise((resolve, reject) => {
     execFile(
       'git',
-      [...args],
+      ['-c', 'core.longpaths=true', ...args],
       {
         cwd,
         encoding: 'utf8',
@@ -86,7 +87,7 @@ export async function createWorktree(
     'worktree',
     'add',
     '--no-track',
-    '-b',
+    '-B',
     branch,
     worktreePath,
     baseBranch,
@@ -95,7 +96,7 @@ export async function createWorktree(
 
 /** Removes a clean worktree. It intentionally does not force-delete uncommitted work. */
 export async function removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
-  await runGit(repoPath, ['worktree', 'remove', worktreePath]);
+  await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
   await runGit(repoPath, ['worktree', 'prune']);
 }
 

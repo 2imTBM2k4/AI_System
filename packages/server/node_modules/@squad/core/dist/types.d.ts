@@ -23,6 +23,13 @@ export interface TaskResult extends Task {
     endedAt?: string;
     error?: string;
 }
+export type ExecutionMode = 'direct' | 'worktree';
+export type ReviewStatus = 'passed' | 'needs_fix';
+export interface ReviewResult {
+    status: ReviewStatus;
+    summary: string;
+    fixTasks?: Task[];
+}
 export type SquadEvent = {
     type: 'plan:start';
     goal: string;
@@ -51,6 +58,20 @@ export type SquadEvent = {
     type: 'task:done';
     runId: string;
     result: TaskResult;
+} | {
+    type: 'review:start';
+    runId: string;
+    round: number;
+} | {
+    type: 'review:log';
+    runId: string;
+    round: number;
+    chunk: string;
+} | {
+    type: 'review:done';
+    runId: string;
+    round: number;
+    result: ReviewResult;
 } | {
     type: 'run:done';
     runId: string;

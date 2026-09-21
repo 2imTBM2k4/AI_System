@@ -46,6 +46,7 @@ export function App() {
     isLoading: isRunLoading,
     error: runError,
     dispatch,
+    refresh: refreshRunDetail,
   } = useSquadEvents(currentViewRunId);
 
   const handleSelectRepo = (repoId: string) => {
@@ -61,6 +62,12 @@ export function App() {
     setCreatedPlan(null);
     refreshRuns();
     setCurrentViewRunId(runId);
+    refreshRunDetail();
+  };
+
+  const handleRefresh = () => {
+    refreshRuns();
+    refreshRunDetail();
   };
 
   const handleTaskCancelled = (taskId: string) => {
@@ -85,7 +92,7 @@ export function App() {
           runs={runs}
           selectedRunId={currentViewRunId}
           onSelectRun={(runId) => setCurrentViewRunId(runId)}
-          onRefresh={refreshRuns}
+          onRefresh={handleRefresh}
         />
 
         {/* Main Content Area */}
@@ -136,17 +143,28 @@ export function App() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-xs">Đang nạp snapshot trạng thái...</span>
                 </div>
-              ) : runError ? (
-                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
-                  {runError}
-                </div>
               ) : viewingRun ? (
-                <KanbanBoard
-                  run={viewingRun}
-                  tasks={viewingTasks}
-                  taskLogs={viewingLogs}
-                  onTaskCancelled={handleTaskCancelled}
-                />
+                <>
+                  {runError && (
+                    <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>{runError}</span>
+                    </div>
+                  )}
+                  <KanbanBoard
+                    run={viewingRun}
+                    tasks={viewingTasks}
+                    taskLogs={viewingLogs}
+                    repoId={selectedRepoId || undefined}
+                    onTaskCancelled={handleTaskCancelled}
+                    onRunStarted={handleRunStarted}
+                  />
+                </>
+              ) : runError ? (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <span>{runError}</span>
+                </div>
               ) : (
                 <div className="text-center py-16 border border-zinc-800/80 bg-zinc-900/20 rounded-2xl p-6">
                   <p className="text-xs text-zinc-400">

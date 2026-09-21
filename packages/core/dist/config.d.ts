@@ -41,6 +41,8 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: z.ZodDefault<z.ZodString>;
     maxParallel: z.ZodDefault<z.ZodNumber>;
     timeoutMinutes: z.ZodDefault<z.ZodNumber>;
+    executionMode: z.ZodDefault<z.ZodEnum<["direct", "worktree"]>>;
+    maxReviewRounds: z.ZodDefault<z.ZodNumber>;
     bootstrap: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     copyFiles: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     verify: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
@@ -85,6 +87,8 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
+    executionMode: "direct" | "worktree";
+    maxReviewRounds: number;
     bootstrap: string[];
     copyFiles: string[];
     verify: string[];
@@ -112,6 +116,8 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
+    executionMode?: "direct" | "worktree" | undefined;
+    maxReviewRounds?: number | undefined;
     bootstrap?: string[] | undefined;
     copyFiles?: string[] | undefined;
     verify?: string[] | undefined;
@@ -125,6 +131,8 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
+    executionMode: "direct" | "worktree";
+    maxReviewRounds: number;
     bootstrap: string[];
     copyFiles: string[];
     verify: string[];
@@ -152,6 +160,8 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
+    executionMode?: "direct" | "worktree" | undefined;
+    maxReviewRounds?: number | undefined;
     bootstrap?: string[] | undefined;
     copyFiles?: string[] | undefined;
     verify?: string[] | undefined;

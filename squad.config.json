@@ -8,6 +8,8 @@
   "logDir": ".squad/logs",
   "maxParallel": 3,
   "timeoutMinutes": 30,
+  "executionMode": "direct",
+  "maxReviewRounds": 2,
   "bootstrap": [],
   "copyFiles": [],
   "verify": [],
@@ -85,6 +87,24 @@
       }
     },
     "tester": {
+      "cli": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "command": [
+        "node",
+        "packages/core/bin/direct-runner.mjs",
+        "--model",
+        "{{model}}",
+        "--prompt",
+        "{{prompt}}"
+      ],
+      "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128",
+        "OPENAI_BASE_URL": "http://127.0.0.1:20128/v1",
+        "OPENAI_API_KEY": "sk-9router",
+        "ANTHROPIC_API_KEY": "sk-9router"
+      }
+    },
+    "reviewer": {
       "cli": "9router",
       "model": "ag/gemini-3.8-flash-high",
       "command": [

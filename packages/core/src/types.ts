@@ -43,6 +43,16 @@ export interface TaskResult extends Task {
   error?: string;
 }
 
+export type ExecutionMode = 'direct' | 'worktree';
+
+export type ReviewStatus = 'passed' | 'needs_fix';
+
+export interface ReviewResult {
+  status: ReviewStatus;
+  summary: string;
+  fixTasks?: Task[];
+}
+
 export type SquadEvent =
   | { type: 'plan:start'; goal: string }
   | { type: 'plan:log'; chunk: string }
@@ -51,5 +61,8 @@ export type SquadEvent =
   | { type: 'task:start'; runId: string; taskId: string }
   | { type: 'task:log'; runId: string; taskId: string; chunk: string }
   | { type: 'task:done'; runId: string; result: TaskResult }
+  | { type: 'review:start'; runId: string; round: number }
+  | { type: 'review:log'; runId: string; round: number; chunk: string }
+  | { type: 'review:done'; runId: string; round: number; result: ReviewResult }
   | { type: 'run:done'; runId: string; results: TaskResult[] };
 import type { FileConflict } from './planner.js';

@@ -75,6 +75,37 @@ describe('squadReducer pure state transitions', () => {
     expect(nextState.error).toBeNull();
   });
 
+  it('SNAPSHOT_LOADED populates pending tasks from plan when tasks array is empty (planned run)', () => {
+    const plannedRun: RunRecordDto = {
+      ...dummyRun,
+      status: 'planned',
+      plan: {
+        goal: 'Planned goal',
+        tasks: [
+          {
+            id: 't1',
+            title: 'Task 1',
+            role: 'backend',
+            files: [],
+            dependsOn: [],
+            prompt: 'prompt 1',
+            branch: 'squad/t1',
+          },
+        ],
+      },
+    };
+
+    const nextState = squadReducer(initialState, {
+      type: 'SNAPSHOT_LOADED',
+      payload: { run: plannedRun, tasks: [] },
+    });
+
+    expect(Object.keys(nextState.tasks)).toEqual(['t1']);
+    expect(nextState.tasks.t1.status).toBe('pending');
+    expect(nextState.tasks.t1.title).toBe('Task 1');
+    expect(nextState.tasks.t1.branch).toBe('squad/t1');
+  });
+
   it('TASK_LOG accumulates multiple chunks sequentially without overwriting or clobbering other tasks', () => {
     let state = squadReducer(initialState, {
       type: 'SNAPSHOT_LOADED',

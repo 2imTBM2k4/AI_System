@@ -147,6 +147,14 @@ export interface ApiErrorResponse {
   };
 }
 
+export type ReviewStatus = 'passed' | 'needs_fix';
+
+export interface ReviewResultDto {
+  status: ReviewStatus;
+  summary: string;
+  fixTasks?: TaskDto[];
+}
+
 export type SquadEventType =
   | 'plan:start'
   | 'plan:log'
@@ -155,6 +163,9 @@ export type SquadEventType =
   | 'task:start'
   | 'task:log'
   | 'task:done'
+  | 'review:start'
+  | 'review:log'
+  | 'review:done'
   | 'run:done';
 
 export type SquadEventDto =
@@ -165,6 +176,9 @@ export type SquadEventDto =
   | { type: 'task:start'; runId: string; taskId: string }
   | { type: 'task:log'; runId: string; taskId: string; chunk: string }
   | { type: 'task:done'; runId: string; result: TaskResultDto }
+  | { type: 'review:start'; runId: string; round: number }
+  | { type: 'review:log'; runId: string; round: number; chunk: string }
+  | { type: 'review:done'; runId: string; round: number; result: ReviewResultDto }
   | { type: 'run:done'; runId: string; results: TaskResultDto[] };
 
 export interface AgentSpecDto {
@@ -185,6 +199,8 @@ export interface SquadConfigDto {
   logDir?: string;
   maxParallel: number;
   timeoutMinutes: number;
+  executionMode?: 'direct' | 'worktree';
+  maxReviewRounds?: number;
   bootstrap?: string[];
   copyFiles?: string[];
   verify?: string[];

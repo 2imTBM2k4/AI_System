@@ -16,25 +16,45 @@ import type {
 import { TaskCard } from './TaskCard';
 import { MergeModal } from './MergeModal';
 import { LogDrawer } from '../terminal/LogDrawer';
-import { mergeRun } from '../../api/client';
+import { mergeRun, startRun } from '../../api/client';
 
 interface KanbanBoardProps {
   run: RunRecordDto;
   tasks: Record<string, TaskRecordDto>;
   taskLogs: Record<string, string[]>;
+  repoId?: string;
   onTaskCancelled?: (taskId: string) => void;
+  onRunStarted?: (runId: string) => void;
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   run,
   tasks,
   taskLogs,
+  repoId,
   onTaskCancelled,
+  onRunStarted,
 }) => {
   const [activeLogTaskId, setActiveLogTaskId] = useState<string | null>(null);
   const [mergeReport, setMergeReport] = useState<MergeReportDto | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
+  const [isStartingRun, setIsStartingRun] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleStartRun = async () => {
+    if (!repoId) return;
+    try {
+      setIsStartingRun(true);
+      setActionError(null);
+      await startRun(repoId, { runId: run.id });
+      onRunStarted?.(run.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Không thể khởi chạy Run');
+    } finally {
+      setIsStartingRun(false);
+    }
+  };
 
   const taskList = Object.values(tasks);
 
@@ -110,37 +130,59 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
         {/* Action button */}
         <div className="flex items-center gap-3">
-          {mergeError && (
-            <span className="text-xs text-rose-400 max-w-xs truncate">{mergeError}</span>
+          {(mergeError || actionError) && (
+            <span className="text-xs text-rose-400 max-w-xs truncate">{mergeError || actionError}</span>
           )}
 
-          <button
-            type="button"
-            onClick={handleMerge}
-            disabled={isMerging || runningTasks.length > 0}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs tracking-wide uppercase transition-all shadow-lg ${
-              isAllTasksDone
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 animate-pulse'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60'
-            } disabled:opacity-40 cursor-pointer`}
-            title={
-              runningTasks.length > 0
-                ? 'Vẫn còn task đang chạy, chưa thể merge'
-                : 'Merge các task đã passed vào integration branch'
-            }
-          >
-            {isMerging ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang merge...</span>
-              </>
-            ) : (
-              <>
-                <GitMerge className="w-4 h-4" />
-                <span>Approve & Merge ({passedTasks.length} passed)</span>
-              </>
-            )}
-          </button>
+          {run.status === 'planned' && repoId ? (
+            <button
+              type="button"
+              onClick={handleStartRun}
+              disabled={isStartingRun}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs tracking-wide uppercase transition-all shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+              title="Bắt đầu khởi chạy các coding agents cho Plan này"
+            >
+              {isStartingRun ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang khởi chạy agents...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Bắt đầu Run (Khởi chạy Agents)</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleMerge}
+              disabled={isMerging || runningTasks.length > 0}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs tracking-wide uppercase transition-all shadow-lg ${
+                isAllTasksDone
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 animate-pulse'
+                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60'
+              } disabled:opacity-40 cursor-pointer`}
+              title={
+                runningTasks.length > 0
+                  ? 'Vẫn còn task đang chạy, chưa thể merge'
+                  : 'Merge các task đã passed vào integration branch'
+              }
+            >
+              {isMerging ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang merge...</span>
+                </>
+              ) : (
+                <>
+                  <GitMerge className="w-4 h-4" />
+                  <span>Approve & Merge ({passedTasks.length} passed)</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 

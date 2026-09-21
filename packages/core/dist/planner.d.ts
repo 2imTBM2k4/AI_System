@@ -37,9 +37,9 @@ export declare const PlanTaskSchema: z.ZodObject<{
     title: string;
     role: string;
     prompt: string;
+    verify?: string | undefined;
     files?: string[] | undefined;
     dependsOn?: string[] | undefined;
-    verify?: string | undefined;
     branch?: string | undefined;
 }>;
 export declare const PlanSchema: z.ZodObject<{
@@ -66,9 +66,9 @@ export declare const PlanSchema: z.ZodObject<{
         title: string;
         role: string;
         prompt: string;
+        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
-        verify?: string | undefined;
         branch?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
@@ -88,13 +88,13 @@ export declare const PlanSchema: z.ZodObject<{
         title: string;
         role: string;
         prompt: string;
+        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
-        verify?: string | undefined;
         branch?: string | undefined;
     }[];
 }>;
-/** Builds the exact planning prompt specified by the roadmap. */
+/** Builds the planning prompt for roadmap execution. */
 export declare function buildPlannerPrompt(cfg: SquadConfig, goal: string, overview: RepoOverview): string;
 /** Summarizes tracked files without reading repository contents. */
 export declare function repoOverview(repoPath: string): Promise<RepoOverview>;

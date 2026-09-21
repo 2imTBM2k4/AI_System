@@ -125,7 +125,13 @@ export interface ApiErrorResponse {
         message: string;
     };
 }
-export type SquadEventType = 'plan:start' | 'plan:log' | 'plan:done' | 'run:start' | 'task:start' | 'task:log' | 'task:done' | 'run:done';
+export type ReviewStatus = 'passed' | 'needs_fix';
+export interface ReviewResultDto {
+    status: ReviewStatus;
+    summary: string;
+    fixTasks?: TaskDto[];
+}
+export type SquadEventType = 'plan:start' | 'plan:log' | 'plan:done' | 'run:start' | 'task:start' | 'task:log' | 'task:done' | 'review:start' | 'review:log' | 'review:done' | 'run:done';
 export type SquadEventDto = {
     type: 'plan:start';
     goal: string;
@@ -155,6 +161,20 @@ export type SquadEventDto = {
     runId: string;
     result: TaskResultDto;
 } | {
+    type: 'review:start';
+    runId: string;
+    round: number;
+} | {
+    type: 'review:log';
+    runId: string;
+    round: number;
+    chunk: string;
+} | {
+    type: 'review:done';
+    runId: string;
+    round: number;
+    result: ReviewResultDto;
+} | {
     type: 'run:done';
     runId: string;
     results: TaskResultDto[];
@@ -176,6 +196,8 @@ export interface SquadConfigDto {
     logDir?: string;
     maxParallel: number;
     timeoutMinutes: number;
+    executionMode?: 'direct' | 'worktree';
+    maxReviewRounds?: number;
     bootstrap?: string[];
     copyFiles?: string[];
     verify?: string[];

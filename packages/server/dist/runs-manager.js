@@ -161,18 +161,36 @@ export class RunsManager {
     }
     /** Retrieves the status and task list for any historical or running run. */
     async getRunDetail(runId) {
+        const resolveTasks = (run, tasks) => {
+            if (tasks.length === 0 && run.plan?.tasks) {
+                return run.plan.tasks.map((t) => ({
+                    id: t.id,
+                    runId: run.id,
+                    title: t.title,
+                    role: t.role,
+                    status: 'pending',
+                    branch: t.branch,
+                    logPath: '',
+                    startedAt: null,
+                    endedAt: null,
+                    error: null,
+                    pid: null,
+                }));
+            }
+            return tasks;
+        };
         const active = this.activeRunsById.get(runId);
         if (active !== undefined) {
             const run = active.store.getRun(runId);
             if (run !== undefined) {
-                return { run, tasks: active.store.listTasks(runId) };
+                return { run, tasks: resolveTasks(run, active.store.listTasks(runId)) };
             }
         }
         for (const repo of this.registry.list()) {
             const detail = await this.withStore(repo.path, (store) => {
                 const run = store.getRun(runId);
                 if (run !== undefined) {
-                    return { run, tasks: store.listTasks(runId) };
+                    return { run, tasks: resolveTasks(run, store.listTasks(runId)) };
                 }
                 return undefined;
             });
@@ -235,6 +253,9 @@ export class RunsManager {
                 'task:start',
                 'task:log',
                 'task:done',
+                'review:start',
+                'review:log',
+                'review:done',
                 'run:done',
             ];
             // Attach live listener FIRST so no event can be missed during the initial query

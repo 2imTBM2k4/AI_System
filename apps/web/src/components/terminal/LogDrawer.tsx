@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Terminal, X, Copy, Check } from 'lucide-react';
+import { Terminal, X, Copy, Check, AlertCircle } from 'lucide-react';
 import type { TaskRecordDto } from '@squad/shared-types';
 
 interface LogDrawerProps {
@@ -26,7 +26,11 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
   if (!task) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(logs.join(''));
+    const allText = [
+      task.error ? `[ERROR]: ${task.error}\n\n` : '',
+      ...logs,
+    ].join('');
+    navigator.clipboard.writeText(allText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -59,7 +63,7 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
             type="button"
             onClick={handleCopy}
             className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-            title="Sao chép toàn bộ logs"
+            title="Sao chép toàn bộ logs và lỗi"
           >
             {copied ? (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -80,12 +84,26 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
       {/* Terminal View */}
       <div
         ref={terminalRef}
-        className="flex-1 p-4 font-mono text-xs text-zinc-300 overflow-y-auto bg-black/60 space-y-1 select-text"
+        className="flex-1 p-4 font-mono text-xs text-zinc-300 overflow-y-auto bg-black/60 space-y-2 select-text"
       >
-        {logs.length === 0 ? (
-          <div className="text-zinc-600 italic py-8 text-center">
-            Chưa có dòng log nào được ghi nhận cho task này...
+        {task.error && (
+          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-rose-400 text-xs uppercase tracking-wider">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Chi tiết lỗi ({task.status}):</span>
+            </div>
+            <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-rose-200 bg-black/40 p-3 rounded-lg border border-rose-500/20">
+              {task.error}
+            </pre>
           </div>
+        )}
+
+        {logs.length === 0 ? (
+          !task.error && (
+            <div className="text-zinc-600 italic py-8 text-center">
+              Chưa có dòng log nào được ghi nhận cho task này...
+            </div>
+          )
         ) : (
           logs.map((chunk, idx) => (
             <pre

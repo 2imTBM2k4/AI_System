@@ -1,29 +1,176 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
-/* Custom modern scrollbars */
+/* ==========================================================================
+   Liquid Glass & Specular Utilities (Light & Dark Adaptive)
+   ========================================================================== */
+
+/* Base liquid glass panel */
+.liquid-glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+}
+
+:root.dark .liquid-glass-panel,
+.dark .liquid-glass-panel {
+  background: rgba(18, 18, 24, 0.65);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Glass interactive card */
+.liquid-glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-glass-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.1),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+:root.dark .liquid-glass-card,
+.dark .liquid-glass-card {
+  background: rgba(24, 24, 32, 0.5);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .liquid-glass-card:hover,
+.dark .liquid-glass-card:hover {
+  background: rgba(30, 30, 42, 0.65);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Liquid Input / Control */
+.liquid-glass-input {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #09090b;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.liquid-glass-input:focus {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+}
+
+:root.dark .liquid-glass-input,
+.dark .liquid-glass-input {
+  background: rgba(10, 10, 15, 0.6);
+  border-color: rgba(255, 255, 255, 0.09);
+  color: #f4f4f5;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+:root.dark .liquid-glass-input:focus,
+.dark .liquid-glass-input:focus {
+  background: rgba(12, 12, 18, 0.8);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Specular borders & glows */
+.specular-border {
+  position: relative;
+}
+.specular-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  pointer-events: none;
+}
+
+:root.dark .specular-border::before,
+.dark .specular-border::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+}
+
+/* Glow effects */
+.glow-indigo {
+  box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.35);
+}
+.glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.35);
+}
+.glow-amber {
+  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.35);
+}
+.glow-rose {
+  box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.35);
+}
+
+/* Custom modern acrylic scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(24, 24, 27, 0.5);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+:root.dark ::-webkit-scrollbar-track,
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 15, 20, 0.5);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(63, 63, 70, 0.8);
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 9999px;
+  backdrop-filter: blur(4px);
+}
+
+:root.dark ::-webkit-scrollbar-thumb,
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(113, 113, 122, 1);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+:root.dark ::-webkit-scrollbar-thumb:hover,
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }

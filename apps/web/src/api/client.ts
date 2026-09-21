@@ -51,6 +51,20 @@ export async function registerRepo(path: string): Promise<RegisterRepoResponse> 
   return handleResponse<RegisterRepoResponse>(res);
 }
 
+export interface DetectRepoResult {
+  packageManager: 'pnpm' | 'yarn' | 'npm' | null;
+  bootstrap: string[];
+}
+
+export async function detectRepoInfo(path: string): Promise<DetectRepoResult> {
+  const res = await fetch('/repos/detect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  return handleResponse<DetectRepoResult>(res);
+}
+
 export async function listRuns(repoId: string): Promise<ListRunsResponse> {
   const res = await fetch(`/repos/${encodeURIComponent(repoId)}/runs`);
   return handleResponse<ListRunsResponse>(res);

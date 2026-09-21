@@ -27,6 +27,8 @@ import {
   getRepoConfig,
   updateRepoConfig,
 } from '../../api/client';
+import { GlassButton } from '../glass/GlassButton';
+import { GlassBadge } from '../glass/GlassBadge';
 
 interface AiProviderHubModalProps {
   selectedRepoId: string | null;
@@ -329,27 +331,32 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
   const nineRouter = providers.find((p) => p.id === '9router');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="p-6 border-b border-zinc-800 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="relative bg-white/95 dark:bg-zinc-950/85 backdrop-blur-2xl border border-black/10 dark:border-white/[0.12] rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.85)] animate-in zoom-in-95 duration-200 overflow-hidden text-zinc-900 dark:text-zinc-100">
+        {/* Specular edge highlight */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent pointer-events-none"
+        />
+
+        {/* Modal Header */}
+        <div className="p-6 border-b border-black/[0.06] dark:border-white/[0.08] flex items-start justify-between bg-black/[0.01] dark:bg-white/[0.02]">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/25 border border-white/20">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-zinc-100">
-                  AI Providers & Model Hub
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                  AI Providers &amp; Model Hub
                 </h3>
                 {nineRouter?.enabled && (
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    9Router Active
-                  </span>
+                  <GlassBadge variant="emerald" dot pulse>
+                    <span className="text-[10px] font-bold">9Router Active</span>
+                  </GlassBadge>
                 )}
               </div>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                 Quản lý các tài khoản AI, Gateway 9Router, và chọn Model trực tiếp cho các coding agents
               </p>
             </div>
@@ -358,33 +365,33 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Selection */}
-        <div className="px-6 pt-3 border-b border-zinc-800/80 flex items-center gap-4 bg-zinc-950/40">
+        <div className="px-6 pt-3 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center gap-4 bg-black/[0.01] dark:bg-white/[0.01]">
           <button
             type="button"
             onClick={() => setActiveTab('providers')}
-            className={`flex items-center gap-2 pb-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all ${
+            className={`flex items-center gap-2 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
               activeTab === 'providers'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-700 dark:text-indigo-300 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
             }`}
           >
             <Wifi className="w-4 h-4" />
-            <span>1. Nhà Cung Cấp & 9Router</span>
+            <span>1. Nhà Cung Cấp &amp; 9Router</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('roles')}
-            className={`flex items-center gap-2 pb-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all ${
+            className={`flex items-center gap-2 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
               activeTab === 'roles'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                ? 'border-indigo-600 dark:border-indigo-400 text-indigo-700 dark:text-indigo-300 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -395,18 +402,18 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
         {/* Content Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {isLoading ? (
-            <div className="flex items-center justify-center py-20 text-zinc-500 gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-              <span className="text-sm">Đang nạp thông tin providers...</span>
+            <div className="flex flex-col items-center justify-center py-20 text-zinc-400 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-500 dark:text-indigo-400" />
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Đang nạp thông tin providers...</span>
             </div>
           ) : (
             <>
               {feedback && (
                 <div
-                  className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+                  className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 backdrop-blur-md ${
                     feedback.type === 'success'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                      : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-rose-50 dark:bg-rose-500/15 border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -420,7 +427,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setFeedback(null)}
-                    className="p-1 hover:bg-zinc-800 rounded"
+                    className="p-1 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] rounded cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -430,43 +437,44 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
               {/* TAB 1: PROVIDERS & 9ROUTER */}
               {activeTab === 'providers' && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20 text-xs text-indigo-300 space-y-1">
-                    <div className="font-semibold flex items-center gap-1.5 text-indigo-200">
-                      <Sparkles className="w-4 h-4 text-indigo-400" />
+                  <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 text-xs text-indigo-800 dark:text-indigo-300 space-y-1 backdrop-blur-md">
+                    <div className="font-semibold flex items-center gap-1.5 text-indigo-900 dark:text-indigo-200">
+                      <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       Khuyên dùng: 9Router Local AI Gateway
                     </div>
-                    <p className="text-zinc-400 leading-relaxed">
+                    <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-[11px]">
                       9Router giúp gom các tài khoản Pro/Max, tự động cân bằng tải (round-robin), chống rate limit 429 khi nhiều agent chạy song song, và tự động nén token bằng RTK Saver.
                     </p>
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                       Danh Sách Nhà Cung Cấp ({providers.length})
                     </span>
-                    <button
+                    <GlassButton
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => setShowAddCustom((v) => !v)}
-                      className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-indigo-300 border border-zinc-700 transition-colors cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                      <Plus className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                       <span>Thêm Nhà Cung Cấp</span>
-                    </button>
+                    </GlassButton>
                   </div>
 
                   {showAddCustom && (
                     <form
                       onSubmit={handleAddCustomProvider}
-                      className="p-4 rounded-xl bg-zinc-950 border border-indigo-500/30 space-y-3 animate-in fade-in zoom-in-95 duration-150"
+                      className="p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.03] border border-indigo-300 dark:border-indigo-500/35 space-y-3 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md"
                     >
                       <div className="flex items-center justify-between">
-                        <h5 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">
+                        <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wide">
                           Thêm Nhà Cung Cấp Mới (OpenAI-Compatible)
                         </h5>
                         <button
                           type="button"
                           onClick={() => setShowAddCustom(false)}
-                          className="text-zinc-500 hover:text-zinc-300"
+                          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -474,7 +482,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1 font-mono">
+                          <label className="block text-[11px] text-zinc-600 dark:text-zinc-400 mb-1 font-mono">
                             Tên Nhà Cung Cấp *
                           </label>
                           <input
@@ -483,12 +491,12 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                             placeholder="Ví dụ: Groq, Ollama, OpenRouter..."
                             value={customName}
                             onChange={(e) => setCustomName(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="liquid-glass-input w-full rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 dark:text-zinc-200 focus:outline-none"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1 font-mono">
+                          <label className="block text-[11px] text-zinc-600 dark:text-zinc-400 mb-1 font-mono">
                             Base URL Endpoint *
                           </label>
                           <input
@@ -497,12 +505,12 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                             placeholder="Ví dụ: https://api.groq.com/openai/v1"
                             value={customBaseUrl}
                             onChange={(e) => setCustomBaseUrl(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="liquid-glass-input w-full rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-200 focus:outline-none"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1 font-mono">
+                          <label className="block text-[11px] text-zinc-600 dark:text-zinc-400 mb-1 font-mono">
                             API Key (Tùy chọn)
                           </label>
                           <input
@@ -510,25 +518,27 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                             placeholder="sk-..."
                             value={customApiKey}
                             onChange={(e) => setCustomApiKey(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="liquid-glass-input w-full rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-900 dark:text-zinc-200 focus:outline-none"
                           />
                         </div>
                       </div>
 
                       <div className="flex justify-end gap-2 pt-1">
-                        <button
+                        <GlassButton
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setShowAddCustom(false)}
-                          className="px-3 py-1 text-xs text-zinc-400 hover:text-zinc-200"
                         >
                           Hủy
-                        </button>
-                        <button
+                        </GlassButton>
+                        <GlassButton
                           type="submit"
-                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                          variant="primary"
+                          size="sm"
                         >
                           Thêm vào Danh Sách
-                        </button>
+                        </GlassButton>
                       </div>
                     </form>
                   )}
@@ -543,10 +553,10 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                       return (
                         <div
                           key={p.id}
-                          className={`p-5 rounded-xl border transition-all ${
+                          className={`p-4 rounded-xl border transition-all duration-200 backdrop-blur-md relative overflow-hidden ${
                             p.enabled
-                              ? 'bg-zinc-950/80 border-zinc-700/80 shadow-sm'
-                              : 'bg-zinc-950/30 border-zinc-800/50 opacity-75'
+                              ? 'bg-black/[0.02] dark:bg-white/[0.03] border-black/[0.08] dark:border-white/[0.09] shadow-sm'
+                              : 'bg-black/[0.01] dark:bg-white/[0.01] border-black/[0.04] dark:border-white/[0.05] opacity-75'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-3">
@@ -558,17 +568,17 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                 onChange={(e) =>
                                   handleProviderChange(p.id, 'enabled', e.target.checked)
                                 }
-                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-zinc-800 border-zinc-700 cursor-pointer"
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 cursor-pointer accent-indigo-500"
                               />
                               <label
                                 htmlFor={`toggle-${p.id}`}
-                                className="text-sm font-bold text-zinc-100 cursor-pointer flex items-center gap-2"
+                                className="text-sm font-bold text-zinc-900 dark:text-zinc-100 cursor-pointer flex items-center gap-2"
                               >
                                 {p.name}
                                 {is9Router && (
-                                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                    Gateway
-                                  </span>
+                                  <GlassBadge variant="indigo">
+                                    <span className="text-[10px] uppercase font-bold tracking-wider">Gateway</span>
+                                  </GlassBadge>
                                 )}
                               </label>
                             </div>
@@ -576,18 +586,18 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                             <div className="flex items-center gap-3">
                               {/* Test Status Badge */}
                               {status?.testing ? (
-                                <span className="flex items-center gap-1.5 text-xs text-amber-400 font-mono">
+                                <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-mono">
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang kiểm tra...
                                 </span>
                               ) : status?.result ? (
                                 status.result.success ? (
-                                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono">
+                                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     Online ({status.result.latencyMs}ms • {status.result.models.length} models)
                                   </span>
                                 ) : (
                                   <span
-                                    className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full font-mono max-w-xs truncate"
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 px-2.5 py-0.5 rounded-full font-mono max-w-xs truncate"
                                     title={status.result.error}
                                   >
                                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -600,7 +610,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteProvider(p.id)}
-                                  className="text-zinc-500 hover:text-rose-400 p-1 transition-colors"
+                                  className="text-zinc-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
                                   title="Xóa nhà cung cấp này"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -612,7 +622,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                           {p.enabled && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                               <div>
-                                <label className="block text-xs text-zinc-400 mb-1 font-mono">
+                                <label className="block text-xs text-zinc-600 dark:text-zinc-400 mb-1 font-mono">
                                   Base URL Endpoint
                                 </label>
                                 <input
@@ -624,12 +634,12 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                   onChange={(e) =>
                                     handleProviderChange(p.id, 'baseUrl', e.target.value)
                                   }
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                  className="liquid-glass-input w-full rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none"
                                 />
                               </div>
 
                               <div>
-                                <label className="block text-xs text-zinc-400 mb-1 font-mono flex items-center justify-between">
+                                <label className="block text-xs text-zinc-600 dark:text-zinc-400 mb-1 font-mono flex items-center justify-between">
                                   <span>API Key / Token</span>
                                   <button
                                     type="button"
@@ -639,7 +649,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                         [p.id]: !prev[p.id],
                                       }))
                                     }
-                                    className="text-zinc-500 hover:text-zinc-300"
+                                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-pointer"
                                   >
                                     {showPassword ? (
                                       <EyeOff className="w-3.5 h-3.5" />
@@ -660,17 +670,19 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                     onChange={(e) =>
                                       handleProviderChange(p.id, 'apiKey', e.target.value)
                                     }
-                                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="liquid-glass-input flex-1 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none"
                                   />
 
-                                  <button
+                                  <GlassButton
                                     type="button"
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => handleTestConnection(p)}
                                     disabled={status?.testing}
-                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-lg border border-zinc-700 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
+                                    className="whitespace-nowrap"
                                   >
                                     {status?.testing ? 'Đang test...' : 'Test & Lấy Models'}
-                                  </button>
+                                  </GlassButton>
                                 </div>
                               </div>
                             </div>
@@ -686,9 +698,9 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
               {activeTab === 'roles' && (
                 <div className="space-y-6">
                   {!selectedRepoId ? (
-                    <div className="p-6 text-center border border-dashed border-zinc-800 rounded-xl">
-                      <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-                      <p className="text-xs text-zinc-300 font-semibold">
+                    <div className="p-6 text-center border border-dashed border-black/10 dark:border-white/[0.08] rounded-xl bg-black/[0.01] dark:bg-white/[0.01]">
+                      <AlertCircle className="w-8 h-8 text-amber-500 dark:text-amber-400 mx-auto mb-2" />
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 font-semibold">
                         Vui lòng chọn repository trước khi phân bổ model
                       </p>
                     </div>
@@ -700,27 +712,27 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                     <>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                            <Layers className="w-4 h-4" /> Phân Bổ Agent Theo Vai Trò
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                            <Layers className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> Phân Bổ Agent Theo Vai Trò
                           </h4>
-                          <span className="text-[11px] text-zinc-500 font-mono">
+                          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
                             Auto-sync với squad.config.json
                           </span>
                         </div>
 
                         {/* OpenRouter / 9Router Tip */}
-                        <div className="p-3.5 rounded-xl bg-indigo-500/5 border border-indigo-500/20 text-xs text-zinc-300 flex items-start gap-2.5">
-                          <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                        <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 text-xs text-zinc-700 dark:text-zinc-300 flex items-start gap-2.5 backdrop-blur-md">
+                          <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                           <div className="space-y-1">
-                            <div className="font-semibold text-zinc-200">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-200">
                               Cách dùng Model Free từ OpenRouter qua 9Router:
                             </div>
-                            <ul className="text-zinc-400 space-y-1 list-disc list-inside text-[11px] leading-relaxed">
+                            <ul className="text-zinc-600 dark:text-zinc-400 space-y-1 list-disc list-inside text-[11px] leading-relaxed">
                               <li>
-                                <strong className="text-indigo-300">Khuyên dùng OpenAI Codex:</strong> Chọn CLI Tool là <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-200 font-mono">OpenAI Codex</code> để chạy bất kỳ model nào từ OpenRouter (ví dụ: <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-200 font-mono">openrouter/...</code>, <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-200 font-mono">deepseek/...</code>).
+                                <strong className="text-indigo-700 dark:text-indigo-300">Khuyên dùng OpenAI Codex:</strong> Chọn CLI Tool là <code className="bg-black/[0.04] dark:bg-black/40 border border-black/10 dark:border-white/[0.06] px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200 font-mono">OpenAI Codex</code> để chạy bất kỳ model nào từ OpenRouter (ví dụ: <code className="bg-black/[0.04] dark:bg-black/40 border border-black/10 dark:border-white/[0.06] px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200 font-mono">openrouter/...</code>, <code className="bg-black/[0.04] dark:bg-black/40 border border-black/10 dark:border-white/[0.06] px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200 font-mono">deepseek/...</code>).
                               </li>
                               <li>
-                                <strong className="text-indigo-300">Nếu dùng Claude Code:</strong> Do Claude Code kiểm tra tên model ở máy client, hãy mở 9Router và tạo <em className="text-zinc-200">Model Alias</em> (ví dụ: đặt alias <code className="bg-zinc-800 px-1 py-0.5 rounded text-zinc-200 font-mono">claude-3-5-sonnet</code> trỏ tới model free của OpenRouter).
+                                <strong className="text-indigo-700 dark:text-indigo-300">Nếu dùng Claude Code:</strong> Do Claude Code kiểm tra tên model ở máy client, hãy mở 9Router và tạo <em className="text-zinc-800 dark:text-zinc-200">Model Alias</em> (ví dụ: đặt alias <code className="bg-black/[0.04] dark:bg-black/40 border border-black/10 dark:border-white/[0.06] px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200 font-mono">claude-3-5-sonnet</code> trỏ tới model free của OpenRouter).
                               </li>
                             </ul>
                           </div>
@@ -734,36 +746,34 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                               model: 'claude-3-7-sonnet',
                             };
 
-                            const getRoleBadgeColor = (r: string) => {
+                            const getRoleBadgeVariant = (r: string): 'purple' | 'amber' | 'cyan' | 'emerald' | 'indigo' => {
                               switch (r) {
                                 case 'planner':
-                                  return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                                  return 'purple';
                                 case 'backend':
-                                  return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                                  return 'amber';
                                 case 'frontend':
-                                  return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+                                  return 'cyan';
                                 case 'tester':
-                                  return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                                  return 'emerald';
                                 default:
-                                  return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+                                  return 'indigo';
                               }
                             };
 
                             return (
                               <div
                                 key={role}
-                                className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                className="p-4 rounded-xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.025] hover:border-black/15 dark:hover:border-white/[0.14] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md"
                               >
                                 <div className="flex items-center gap-3">
-                                  <span
-                                    className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${getRoleBadgeColor(
-                                      role
-                                    )}`}
-                                  >
-                                    {role}
-                                  </span>
+                                  <GlassBadge variant={getRoleBadgeVariant(role)}>
+                                    <span className="uppercase tracking-wider font-bold text-[10px]">
+                                      {role}
+                                    </span>
+                                  </GlassBadge>
                                   <div>
-                                    <div className="text-xs font-semibold text-zinc-200">
+                                    <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                                       {role === 'planner'
                                         ? 'Agent Phân Rã Kế Hoạch'
                                         : role === 'backend'
@@ -774,8 +784,8 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                         ? 'Agent Viết Test & Kiểm Thử'
                                         : 'Agent Mặc Định (Fallback)'}
                                     </div>
-                                    <div className="text-[11px] text-zinc-500 font-mono">
-                                      CLI: {spec.cli || 'custom'} • Model: {spec.model || 'chưa gán'}
+                                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono mt-0.5">
+                                      CLI: <span className="text-zinc-700 dark:text-zinc-300">{spec.cli || 'custom'}</span> • Model: <span className="text-zinc-700 dark:text-zinc-300">{spec.model || 'chưa gán'}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -786,12 +796,12 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                     aria-label={`Chọn CLI Tool cho vai trò ${role}`}
                                     value={spec.cli || '9router'}
                                     onChange={(e) => handleRoleCliChange(role, e.target.value)}
-                                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                    className="liquid-glass-input rounded-xl px-2.5 py-1.5 text-xs focus:outline-none font-mono cursor-pointer"
                                   >
-                                    <option value="9router">9Router Gateway (Trực tiếp, khuyên dùng ⭐)</option>
-                                    <option value="claude">Claude Code CLI</option>
-                                    <option value="codex">OpenAI Codex CLI</option>
-                                    <option value="gemini">Google Gemini CLI</option>
+                                    <option value="9router" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200">9Router Gateway (Trực tiếp, khuyên dùng ⭐)</option>
+                                    <option value="claude" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200">Claude Code CLI</option>
+                                    <option value="codex" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200">OpenAI Codex CLI</option>
+                                    <option value="gemini" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200">Google Gemini CLI</option>
                                   </select>
 
                                   {/* Model Dropdown with Datalist */}
@@ -804,7 +814,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                       onChange={(e) =>
                                         handleRoleModelChange(role, e.target.value)
                                       }
-                                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono w-64"
+                                      className="liquid-glass-input rounded-xl px-3 py-1.5 text-xs placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none font-mono w-64"
                                     />
                                     <datalist id={`models-list-${role}`}>
                                       {availableModels.map((m) => (
@@ -821,7 +831,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                   !spec.model.startsWith('o1') &&
                                   !spec.model.startsWith('o3') &&
                                   !spec.model.startsWith('cx/') && (
-                                    <div className="w-full text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                                    <div className="w-full text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
                                       <span>⚠️</span>
                                       <span>
                                         <strong>Chú ý:</strong> Codex CLI với tài khoản ChatGPT không hỗ trợ model <code>{spec.model}</code>. Vui lòng đổi CLI sang <strong>&quot;9Router Gateway (Trực tiếp)&quot;</strong>!
@@ -835,14 +845,14 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                       </div>
 
                       {/* Orchestration settings */}
-                      <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                          <Sliders className="w-4 h-4" /> Tham Số Điều Phối Song Song
+                      <div className="p-4 rounded-xl border border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] space-y-3 backdrop-blur-md">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                          <Sliders className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> Tham Số Điều Phối Song Song
                         </h4>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
                           <div>
-                            <label className="block text-zinc-400 mb-1">
+                            <label className="block text-zinc-600 dark:text-zinc-400 mb-1">
                               Số task chạy song song tối đa ({repoConfig.maxParallel} tasks):
                             </label>
                             <input
@@ -861,7 +871,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-zinc-400 mb-1">
+                            <label className="block text-zinc-600 dark:text-zinc-400 mb-1">
                               Timeout tối đa cho mỗi task (phút):
                             </label>
                             <input
@@ -875,7 +885,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                                   timeoutMinutes: parseInt(e.target.value, 10) || 30,
                                 })
                               }
-                              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                              className="liquid-glass-input w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none font-mono"
                             />
                           </div>
                         </div>
@@ -889,25 +899,28 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-zinc-800 bg-zinc-950/40 flex items-center justify-between rounded-b-2xl">
-          <span className="text-[11px] text-zinc-500">
+        <div className="p-6 border-t border-black/[0.06] dark:border-white/[0.08] bg-black/[0.01] dark:bg-white/[0.02] flex items-center justify-between rounded-b-2xl">
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
             * Cấu hình credentials được bảo mật tại thư mục cá nhân (~/.squad).
           </span>
 
           <div className="flex items-center gap-3">
-            <button
+            <GlassButton
               type="button"
+              variant="ghost"
+              size="md"
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               Hủy
-            </button>
-            <button
+            </GlassButton>
+            <GlassButton
               type="button"
+              variant="primary"
+              size="md"
+              glow
               onClick={handleSaveAll}
               disabled={isSaving || isLoading}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs tracking-wide uppercase transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
             >
               {isSaving ? (
                 <>
@@ -920,7 +933,7 @@ export const AiProviderHubModal: React.FC<AiProviderHubModalProps> = ({
                   <span>Lưu Cấu Hình</span>
                 </>
               )}
-            </button>
+            </GlassButton>
           </div>
         </div>
       </div>

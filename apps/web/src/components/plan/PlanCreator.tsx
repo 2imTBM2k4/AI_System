@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Sparkles, ArrowRight, Loader2, Compass } from 'lucide-react';
 import type { PlanResponse } from '@squad/shared-types';
 import { createPlan } from '../../api/client';
+import { GlassCard } from '../glass/GlassCard';
+import { GlassButton } from '../glass/GlassButton';
 
 interface PlanCreatorProps {
   repoId: string;
@@ -37,28 +39,31 @@ export const PlanCreator: React.FC<PlanCreatorProps> = ({
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 shadow-xl relative overflow-hidden">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-          <Sparkles className="w-5 h-5" />
+    <GlassCard variant="default" className="p-6 md:p-7 relative overflow-hidden">
+      {/* Ambient background light */}
+      <div className="absolute -top-20 -left-20 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="flex items-center gap-3.5 mb-5 relative z-10">
+        <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-gradient-to-br dark:from-indigo-500/20 dark:to-purple-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shadow-md shadow-indigo-500/10">
+          <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-zinc-100 tracking-tight">
+          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Lập kế hoạch thực thi mới (Planner Agent)
           </h2>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
             Mô tả mục tiêu của bạn. Agent Planner sẽ tự động phân rã thành các task song song độc lập.
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
         <div>
           <textarea
             aria-label="Mô tả mục tiêu triển khai"
             rows={3}
             placeholder="Ví dụ: Thêm middleware xác thực token JWT, viết unit tests và cập nhật documentation..."
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+            className="liquid-glass-input w-full rounded-2xl p-4 text-sm placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none transition-all resize-none leading-relaxed"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             disabled={isLoading}
@@ -66,9 +71,9 @@ export const PlanCreator: React.FC<PlanCreatorProps> = ({
         </div>
 
         {/* Quick prompt suggestions */}
-        <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-400">
-          <span className="flex items-center gap-1 text-zinc-500">
-            <Compass className="w-3.5 h-3.5" /> Gợi ý:
+        <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-600 dark:text-zinc-400">
+          <span className="flex items-center gap-1 font-medium text-zinc-500 dark:text-zinc-400">
+            <Compass className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> Gợi ý:
           </span>
           <button
             type="button"
@@ -77,7 +82,7 @@ export const PlanCreator: React.FC<PlanCreatorProps> = ({
                 'Tối ưu hóa performance database query và thêm index'
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 transition-colors border border-zinc-700/50"
+            className="px-3 py-1 rounded-xl bg-black/[0.03] hover:bg-black/[0.06] text-zinc-700 hover:text-zinc-900 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] dark:text-zinc-300 dark:hover:text-white transition-all border border-black/10 dark:border-white/[0.08] backdrop-blur-md cursor-pointer text-xs"
           >
             Tối ưu DB queries
           </button>
@@ -88,23 +93,25 @@ export const PlanCreator: React.FC<PlanCreatorProps> = ({
                 'Viết bộ kiểm thử unit tests cho core runner'
               )
             }
-            className="px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 transition-colors border border-zinc-700/50"
+            className="px-3 py-1 rounded-xl bg-black/[0.03] hover:bg-black/[0.06] text-zinc-700 hover:text-zinc-900 dark:bg-white/[0.03] dark:hover:bg-white/[0.08] dark:text-zinc-300 dark:hover:text-white transition-all border border-black/10 dark:border-white/[0.08] backdrop-blur-md cursor-pointer text-xs"
           >
             Viết unit tests
           </button>
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
+          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs">
             {error}
           </div>
         )}
 
         <div className="flex justify-end pt-2">
-          <button
+          <GlassButton
             type="submit"
+            variant="primary"
+            size="lg"
+            glow
             disabled={isLoading || !goal.trim()}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs tracking-wide uppercase transition-all shadow-lg shadow-indigo-600/25 cursor-pointer"
           >
             {isLoading ? (
               <>
@@ -117,9 +124,9 @@ export const PlanCreator: React.FC<PlanCreatorProps> = ({
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
-          </button>
+          </GlassButton>
         </div>
       </form>
-    </div>
+    </GlassCard>
   );
 };

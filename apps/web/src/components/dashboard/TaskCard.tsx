@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { TaskRecordDto } from '@squad/shared-types';
 import { cancelTask } from '../../api/client';
+import { GlassBadge } from '../glass/GlassBadge';
 
 interface TaskCardProps {
   task: TaskRecordDto;
@@ -25,18 +26,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const getRoleStyle = (role: string) => {
+  const getRoleVariant = (role: string): 'purple' | 'cyan' | 'amber' | 'emerald' | 'indigo' => {
     switch (role.toLowerCase()) {
       case 'architect':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      case 'planner':
+        return 'purple';
       case 'frontend':
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+        return 'cyan';
       case 'backend':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'amber';
       case 'tester':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        return 'emerald';
       default:
-        return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+        return 'indigo';
     }
   };
 
@@ -44,47 +46,46 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     switch (status) {
       case 'pending':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/50">
-            <Clock className="w-3 h-3" />
-            pending
-          </span>
+          <GlassBadge variant="neutral">
+            <Clock className="w-2.5 h-2.5" />
+            <span className="text-[10px]">pending</span>
+          </GlassBadge>
         );
       case 'running':
         return (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-            running
-          </span>
+          <GlassBadge variant="amber" dot pulse>
+            <span className="text-[10px]">running</span>
+          </GlassBadge>
         );
       case 'passed':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-            <CheckCircle className="w-3 h-3 text-emerald-400" />
-            passed
-          </span>
+          <GlassBadge variant="emerald" dot>
+            <CheckCircle className="w-2.5 h-2.5" />
+            <span className="text-[10px]">passed</span>
+          </GlassBadge>
         );
       case 'verify_failed':
       case 'agent_failed':
       case 'bootstrap_failed':
       case 'error':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
-            <AlertCircle className="w-3 h-3 text-rose-400" />
-            {status}
-          </span>
+          <GlassBadge variant="rose" dot>
+            <AlertCircle className="w-2.5 h-2.5" />
+            <span className="text-[10px]">{status}</span>
+          </GlassBadge>
         );
       case 'cancelled':
         return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700/50">
-            <XCircle className="w-3 h-3" />
-            cancelled
-          </span>
+          <GlassBadge variant="neutral">
+            <XCircle className="w-2.5 h-2.5" />
+            <span className="text-[10px]">cancelled</span>
+          </GlassBadge>
         );
       default:
         return (
-          <span className="text-[11px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full">
-            {status}
-          </span>
+          <GlassBadge variant="neutral">
+            <span className="text-[10px]">{status}</span>
+          </GlassBadge>
         );
     }
   };
@@ -105,50 +106,54 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   return (
     <div
       onClick={() => onOpenLog(task.id)}
-      className="group p-4 rounded-xl border border-zinc-800/90 bg-zinc-900/70 hover:bg-zinc-850 hover:border-zinc-700/80 transition-all cursor-pointer shadow-sm hover:shadow-md space-y-3"
+      className="group p-4 rounded-xl border border-black/[0.07] dark:border-white/[0.08] bg-white/80 dark:bg-white/[0.03] hover:bg-white dark:hover:bg-white/[0.07] hover:border-indigo-400/40 dark:hover:border-white/[0.18] transition-all duration-200 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] space-y-3 relative overflow-hidden backdrop-blur-md"
     >
+      {/* Subtle specular reflection on top of the card */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 dark:via-white/20 to-transparent pointer-events-none"
+      />
+
       <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-mono font-semibold text-zinc-400 group-hover:text-indigo-400 transition-colors">
+        <span className="text-xs font-mono font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
           #{task.id}
         </span>
         {getStatusBadge(task.status)}
       </div>
 
       <div>
-        <h4 className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors line-clamp-2">
+        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-100 group-hover:text-zinc-950 dark:group-hover:text-white transition-colors line-clamp-2 leading-relaxed">
           {task.title}
         </h4>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider ${getRoleStyle(
-            task.role
-          )}`}
-        >
-          {task.role}
-        </span>
+        <GlassBadge variant={getRoleVariant(task.role)}>
+          <span className="uppercase tracking-wider text-[10px] font-bold">
+            {task.role}
+          </span>
+        </GlassBadge>
 
-        <span className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 bg-zinc-950 px-2 py-0.5 rounded-md border border-zinc-800">
-          <GitBranch className="w-3 h-3 text-zinc-500" />
-          {task.branch}
+        <span className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-600 dark:text-zinc-400 bg-black/[0.03] dark:bg-black/40 px-2 py-0.5 rounded-lg border border-black/10 dark:border-white/[0.06]">
+          <GitBranch className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+          <span>{task.branch}</span>
         </span>
       </div>
 
       {task.error && (
-        <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-mono line-clamp-2">
+        <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-mono line-clamp-2">
           {task.error}
         </div>
       )}
 
-      <div className="pt-2 border-t border-zinc-800/60 flex items-center justify-between text-xs">
+      <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.05] flex items-center justify-between text-xs">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onOpenLog(task.id);
           }}
-          className="flex items-center gap-1 text-zinc-400 hover:text-indigo-400 transition-colors font-mono"
+          className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors font-mono cursor-pointer"
         >
           <Terminal className="w-3.5 h-3.5" />
           <span>Logs</span>
@@ -159,7 +164,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             type="button"
             onClick={handleCancel}
             disabled={isCancelling}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors text-[11px] font-semibold disabled:opacity-50"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-500/15 hover:bg-rose-100 dark:hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/35 transition-all text-[11px] font-semibold disabled:opacity-50 cursor-pointer shadow-sm shadow-rose-500/10"
             title="Hủy task này"
           >
             {isCancelling ? (

@@ -17,6 +17,9 @@ import { TaskCard } from './TaskCard';
 import { MergeModal } from './MergeModal';
 import { LogDrawer } from '../terminal/LogDrawer';
 import { mergeRun, startRun } from '../../api/client';
+import { GlassCard } from '../glass/GlassCard';
+import { GlassBadge } from '../glass/GlassBadge';
+import { GlassButton } from '../glass/GlassButton';
 
 interface KanbanBoardProps {
   run: RunRecordDto;
@@ -100,109 +103,129 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Board Header */}
-      <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-sm font-bold text-indigo-400">
-              Run #{run.id.slice(0, 8)}
-            </span>
-            <span
-              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                run.status === 'running'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : run.status === 'completed'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-              }`}
-            >
-              {run.status}
-            </span>
-            <div className="flex items-center gap-1 text-xs text-zinc-500 font-mono">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>{new Date(run.createdAt).toLocaleString()}</span>
+      {/* Board Header Glass Hero */}
+      <GlassCard variant="default" className="p-6 md:p-7 relative overflow-hidden">
+        {/* Specular edge top */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/30 to-transparent pointer-events-none"
+        />
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-mono text-sm font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-500/20">
+                Run #{run.id.slice(0, 8)}
+              </span>
+              <GlassBadge
+                variant={
+                  run.status === 'running'
+                    ? 'amber'
+                    : run.status === 'completed'
+                    ? 'emerald'
+                    : 'neutral'
+                }
+                dot
+                pulse={run.status === 'running'}
+              >
+                <span className="uppercase tracking-wider font-bold text-[10px]">
+                  {run.status}
+                </span>
+              </GlassBadge>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
+                <span>{new Date(run.createdAt).toLocaleString()}</span>
+              </div>
             </div>
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              &ldquo;{run.goal}&rdquo;
+            </h2>
           </div>
-          <h2 className="text-base font-semibold text-zinc-200">
-            &ldquo;{run.goal}&rdquo;
-          </h2>
+
+          {/* Action button */}
+          <div className="flex items-center gap-3">
+            {(mergeError || actionError) && (
+              <span className="text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 px-3 py-1.5 rounded-lg max-w-xs truncate">
+                {mergeError || actionError}
+              </span>
+            )}
+
+            {run.status === 'planned' && repoId ? (
+              <GlassButton
+                type="button"
+                variant="success"
+                size="lg"
+                glow
+                onClick={handleStartRun}
+                disabled={isStartingRun}
+                title="Bắt đầu khởi chạy các coding agents cho Plan này"
+              >
+                {isStartingRun ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang khởi chạy agents...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>Bắt đầu Run (Khởi chạy Agents)</span>
+                  </>
+                )}
+              </GlassButton>
+            ) : (
+              <GlassButton
+                type="button"
+                variant={isAllTasksDone ? 'success' : 'secondary'}
+                size="lg"
+                glow={isAllTasksDone}
+                onClick={handleMerge}
+                disabled={isMerging || runningTasks.length > 0}
+                className={isAllTasksDone ? 'animate-pulse' : ''}
+                title={
+                  runningTasks.length > 0
+                    ? 'Vẫn còn task đang chạy, chưa thể merge'
+                    : 'Merge các task đã passed vào integration branch'
+                }
+              >
+                {isMerging ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang merge...</span>
+                  </>
+                ) : (
+                  <>
+                    <GitMerge className="w-4 h-4" />
+                    <span>Approve & Merge ({passedTasks.length} passed)</span>
+                  </>
+                )}
+              </GlassButton>
+            )}
+          </div>
         </div>
+      </GlassCard>
 
-        {/* Action button */}
-        <div className="flex items-center gap-3">
-          {(mergeError || actionError) && (
-            <span className="text-xs text-rose-400 max-w-xs truncate">{mergeError || actionError}</span>
-          )}
-
-          {run.status === 'planned' && repoId ? (
-            <button
-              type="button"
-              onClick={handleStartRun}
-              disabled={isStartingRun}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs tracking-wide uppercase transition-all shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
-              title="Bắt đầu khởi chạy các coding agents cho Plan này"
-            >
-              {isStartingRun ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Đang khởi chạy agents...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-white" />
-                  <span>Bắt đầu Run (Khởi chạy Agents)</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleMerge}
-              disabled={isMerging || runningTasks.length > 0}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs tracking-wide uppercase transition-all shadow-lg ${
-                isAllTasksDone
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 animate-pulse'
-                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60'
-              } disabled:opacity-40 cursor-pointer`}
-              title={
-                runningTasks.length > 0
-                  ? 'Vẫn còn task đang chạy, chưa thể merge'
-                  : 'Merge các task đã passed vào integration branch'
-              }
-            >
-              {isMerging ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Đang merge...</span>
-                </>
-              ) : (
-                <>
-                  <GitMerge className="w-4 h-4" />
-                  <span>Approve & Merge ({passedTasks.length} passed)</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 4-Lane Kanban Board */}
+      {/* 4-Lane Liquid Glass Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Lane 1: Pending */}
-        <div className="flex flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-4 min-h-[500px]">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/80">
+        <div className="flex flex-col rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/65 dark:bg-zinc-950/35 backdrop-blur-xl p-4 min-h-[520px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] relative overflow-hidden transition-colors duration-200">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/15 to-transparent pointer-events-none"
+          />
+
+          <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-black/[0.06] dark:border-white/[0.06]">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-zinc-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+              <Clock className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
                 Pending
               </h3>
             </div>
-            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-              {pendingTasks.length}
-            </span>
+            <GlassBadge variant="neutral">
+              <span className="font-mono text-xs font-bold">{pendingTasks.length}</span>
+            </GlassBadge>
           </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-0.5">
             {pendingTasks.map((t) => (
               <TaskCard
                 key={t.id}
@@ -215,20 +238,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* Lane 2: Running */}
-        <div className="flex flex-col rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 min-h-[500px]">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-amber-500/20">
+        <div className="flex flex-col rounded-2xl border border-amber-500/25 bg-amber-50/50 dark:bg-amber-950/15 backdrop-blur-xl p-4 min-h-[520px] shadow-[0_0_25px_rgba(245,158,11,0.04)] dark:shadow-[0_0_30px_rgba(245,158,11,0.06)] relative overflow-hidden transition-colors duration-200">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 dark:via-amber-400/30 to-transparent pointer-events-none"
+          />
+
+          <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-amber-500/20">
             <div className="flex items-center gap-2">
-              <Play className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+              <Play className="w-4 h-4 fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400 animate-pulse" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                 Running
               </h3>
             </div>
-            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
-              {runningTasks.length}
-            </span>
+            <GlassBadge variant="amber" dot pulse>
+              <span className="font-mono text-xs font-bold">{runningTasks.length}</span>
+            </GlassBadge>
           </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-0.5">
             {runningTasks.map((t) => (
               <TaskCard
                 key={t.id}
@@ -241,20 +269,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* Lane 3: Passed */}
-        <div className="flex flex-col rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 min-h-[500px]">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-emerald-500/20">
+        <div className="flex flex-col rounded-2xl border border-emerald-500/25 bg-emerald-50/50 dark:bg-emerald-950/15 backdrop-blur-xl p-4 min-h-[520px] shadow-[0_0_25px_rgba(16,185,129,0.04)] dark:shadow-[0_0_30px_rgba(16,185,129,0.06)] relative overflow-hidden transition-colors duration-200">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 dark:via-emerald-400/30 to-transparent pointer-events-none"
+          />
+
+          <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-emerald-500/20">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                 Passed
               </h3>
             </div>
-            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
-              {passedTasks.length}
-            </span>
+            <GlassBadge variant="emerald" dot>
+              <span className="font-mono text-xs font-bold">{passedTasks.length}</span>
+            </GlassBadge>
           </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-0.5">
             {passedTasks.map((t) => (
               <TaskCard
                 key={t.id}
@@ -267,20 +300,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* Lane 4: Failed / Cancelled */}
-        <div className="flex flex-col rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 min-h-[500px]">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-rose-500/20">
+        <div className="flex flex-col rounded-2xl border border-rose-500/25 bg-rose-50/50 dark:bg-rose-950/15 backdrop-blur-xl p-4 min-h-[520px] shadow-[0_0_25px_rgba(244,63,94,0.04)] dark:shadow-[0_0_30px_rgba(244,63,94,0.06)] relative overflow-hidden transition-colors duration-200">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-rose-400/40 dark:via-rose-400/30 to-transparent pointer-events-none"
+          />
+
+          <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-rose-500/20">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
                 Failed / Cancelled
               </h3>
             </div>
-            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300">
-              {failedTasks.length}
-            </span>
+            <GlassBadge variant="rose" dot>
+              <span className="font-mono text-xs font-bold">{failedTasks.length}</span>
+            </GlassBadge>
           </div>
 
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-0.5">
             {failedTasks.map((t) => (
               <TaskCard
                 key={t.id}

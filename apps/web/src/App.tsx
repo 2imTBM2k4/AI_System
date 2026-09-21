@@ -6,12 +6,17 @@ import { PlanCreator } from './components/plan/PlanCreator';
 import { PlanReviewModal } from './components/plan/PlanReviewModal';
 import { KanbanBoard } from './components/dashboard/KanbanBoard';
 import { AiProviderHubModal } from './components/providers/AiProviderHubModal';
+import { AmbientBackdrop } from './components/glass/AmbientBackdrop';
+import { GlassCard } from './components/glass/GlassCard';
 import { useRepos } from './hooks/useRepos';
 import { useSquadEvents } from './hooks/useSquadEvents';
+import { useTheme } from './hooks/useTheme';
 import type { PlanResponse } from '@squad/shared-types';
 import { Layers, AlertCircle, Loader2 } from 'lucide-react';
 
 export function App() {
+  const { theme, toggleTheme } = useTheme();
+
   const {
     repos,
     selectedRepoId,
@@ -75,8 +80,11 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
-      {/* Top Navbar */}
+    <div className="min-h-screen bg-slate-100 text-zinc-900 dark:bg-[#07070a] dark:text-zinc-100 flex flex-col font-sans relative selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:bg-indigo-500/40 dark:selection:text-white transition-colors duration-300">
+      {/* Liquid Ambient Lighting Mesh */}
+      <AmbientBackdrop />
+
+      {/* Top Glass Navbar */}
       <Header
         repos={repos}
         selectedRepoId={selectedRepoId}
@@ -84,10 +92,12 @@ export function App() {
         onRepoAdded={refreshRepos}
         onOpenAiHub={() => setShowAiHubModal(true)}
         isConnected={isConnected}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
+      <div className="flex-1 flex overflow-hidden relative z-10">
+        {/* Left Frosted Glass Sidebar */}
         <Sidebar
           runs={runs}
           selectedRunId={currentViewRunId}
@@ -96,29 +106,42 @@ export function App() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-8 space-y-8">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
           {reposError && (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
+            <GlassCard
+              variant="glow-rose"
+              className="p-4 text-rose-700 dark:text-rose-300 text-sm flex items-center gap-2.5 border-rose-500/30"
+            >
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-500" />
               <span>{reposError}</span>
-            </div>
+            </GlassCard>
           )}
 
           {isReposLoading ? (
-            <div className="flex items-center justify-center py-20 text-zinc-500 gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-              <span className="text-sm">Đang tải thông tin repositories...</span>
+            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-400 gap-3">
+              <div className="relative">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 dark:text-indigo-400" />
+                <div className="absolute inset-0 blur-md bg-indigo-500/30 -z-10 rounded-full" />
+              </div>
+              <span className="text-xs font-medium tracking-wide uppercase">
+                Đang nạp dữ liệu repositories...
+              </span>
             </div>
           ) : !selectedRepoId ? (
-            <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl p-8">
-              <Layers className="w-12 h-12 mx-auto text-zinc-600 mb-3" />
-              <h2 className="text-base font-bold text-zinc-200 mb-1">
+            <GlassCard
+              variant="default"
+              className="text-center py-20 p-8 max-w-2xl mx-auto"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/5">
+                <Layers className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+              </div>
+              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-2">
                 Chưa có Repository nào được chọn
               </h2>
-              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-                Vui lòng chọn repository từ thanh menu trên hoặc bấm &quot;Thêm Repo&quot; để đăng ký thư mục dự án của bạn.
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
+                Vui lòng chọn repository từ thanh menu trên hoặc bấm &ldquo;Thêm Repo&rdquo; để đăng ký thư mục dự án và bắt đầu điều phối đa agent.
               </p>
-            </div>
+            </GlassCard>
           ) : (
             <>
               {/* RÀNG BUỘC KIẾN TRÚC: 1 RUN ACTIVE / REPO
@@ -139,17 +162,20 @@ export function App() {
 
               {/* View Run Board */}
               {isRunLoading ? (
-                <div className="flex items-center justify-center py-20 text-zinc-500 gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-xs">Đang nạp snapshot trạng thái...</span>
+                <div className="flex items-center justify-center py-20 text-zinc-500 dark:text-zinc-400 gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-500 dark:text-indigo-400" />
+                  <span className="text-xs font-mono">Đang nạp snapshot trạng thái...</span>
                 </div>
               ) : viewingRun ? (
                 <>
                   {runError && (
-                    <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <GlassCard
+                      variant="glow-amber"
+                      className="p-3 mb-4 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2 border-amber-500/30"
+                    >
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
                       <span>{runError}</span>
-                    </div>
+                    </GlassCard>
                   )}
                   <KanbanBoard
                     run={viewingRun}
@@ -161,16 +187,19 @@ export function App() {
                   />
                 </>
               ) : runError ? (
-                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                <GlassCard
+                  variant="glow-rose"
+                  className="p-4 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2"
+                >
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   <span>{runError}</span>
-                </div>
+                </GlassCard>
               ) : (
-                <div className="text-center py-16 border border-zinc-800/80 bg-zinc-900/20 rounded-2xl p-6">
-                  <p className="text-xs text-zinc-400">
+                <GlassCard variant="default" className="text-center py-16 p-6">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     Chọn một run từ danh sách lịch sử ở sidebar trái để xem chi tiết điều phối.
                   </p>
-                </div>
+                </GlassCard>
               )}
             </>
           )}

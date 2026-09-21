@@ -153,3 +153,9 @@ export async function mergeBranch(repoPath: string, branch: string): Promise<voi
 export async function abortMerge(repoPath: string): Promise<void> {
   await runGit(repoPath, ['merge', '--abort']);
 }
+
+/** Reverts all tracked modifications and deletes all untracked files in the working tree. */
+export async function rollbackWorkingTree(repoPath: string): Promise<void> {
+  await runGit(repoPath, ['reset', '--hard', 'HEAD']);
+  await runGit(repoPath, ['clean', '-fd']);
+}

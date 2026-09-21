@@ -126,6 +126,15 @@ async function extractAndWriteFiles(text, cwd) {
     if (written.some((w) => w.path === normalized)) {
       return;
     }
+    // Prevent accidental overwrite of package.json or squad.config.json unless prompt explicitly mentions it
+    const baseName = normalized.split('/').pop() || '';
+    if (baseName === 'package.json' || baseName === 'squad.config.json') {
+      const lowerPrompt = prompt.toLowerCase();
+      if (!lowerPrompt.includes(baseName) && !lowerPrompt.includes('dependency') && !lowerPrompt.includes('dependencies')) {
+        process.stdout.write(`\n[squad:protect] Skipped unintended modification of ${normalized}\n`);
+        return;
+      }
+    }
     await mkdir(dirname(fullPath), { recursive: true });
     await writeFile(fullPath, code, 'utf8');
     written.push({ path: normalized, bytes: Buffer.byteLength(code) });

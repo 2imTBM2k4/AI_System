@@ -78,6 +78,7 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
         promptFile?: string | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
+    verify: string[];
     configVersion: 1;
     baseBranch: string;
     integrationBranch: string;
@@ -87,11 +88,10 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
-    executionMode: "direct" | "worktree";
+    executionMode: "worktree" | "direct";
     maxReviewRounds: number;
     bootstrap: string[];
     copyFiles: string[];
-    verify: string[];
     agents: Record<string, {
         cli?: string | undefined;
         model?: string | undefined;
@@ -107,6 +107,7 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
         env?: Record<string, string> | undefined;
         promptFile?: string | undefined;
     }>;
+    verify?: string[] | undefined;
     configVersion?: 1 | undefined;
     baseBranch?: string | undefined;
     integrationBranch?: string | undefined;
@@ -116,12 +117,12 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
-    executionMode?: "direct" | "worktree" | undefined;
+    executionMode?: "worktree" | "direct" | undefined;
     maxReviewRounds?: number | undefined;
     bootstrap?: string[] | undefined;
     copyFiles?: string[] | undefined;
-    verify?: string[] | undefined;
 }>, {
+    verify: string[];
     configVersion: 1;
     baseBranch: string;
     integrationBranch: string;
@@ -131,11 +132,10 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
-    executionMode: "direct" | "worktree";
+    executionMode: "worktree" | "direct";
     maxReviewRounds: number;
     bootstrap: string[];
     copyFiles: string[];
-    verify: string[];
     agents: Record<string, {
         cli?: string | undefined;
         model?: string | undefined;
@@ -151,6 +151,7 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
         env?: Record<string, string> | undefined;
         promptFile?: string | undefined;
     }>;
+    verify?: string[] | undefined;
     configVersion?: 1 | undefined;
     baseBranch?: string | undefined;
     integrationBranch?: string | undefined;
@@ -160,11 +161,10 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
-    executionMode?: "direct" | "worktree" | undefined;
+    executionMode?: "worktree" | "direct" | undefined;
     maxReviewRounds?: number | undefined;
     bootstrap?: string[] | undefined;
     copyFiles?: string[] | undefined;
-    verify?: string[] | undefined;
 }>;
 export type AgentSpec = z.infer<typeof AgentSpecSchema>;
 export type SquadConfig = z.infer<typeof SquadConfigSchema>;

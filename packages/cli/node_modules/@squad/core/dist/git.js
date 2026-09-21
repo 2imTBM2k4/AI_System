@@ -107,4 +107,9 @@ export async function mergeBranch(repoPath, branch) {
 export async function abortMerge(repoPath) {
     await runGit(repoPath, ['merge', '--abort']);
 }
+/** Reverts all tracked modifications and deletes all untracked files in the working tree. */
+export async function rollbackWorkingTree(repoPath) {
+    await runGit(repoPath, ['reset', '--hard', 'HEAD']);
+    await runGit(repoPath, ['clean', '-fd']);
+}
 //# sourceMappingURL=git.js.map

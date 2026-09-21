@@ -12,7 +12,7 @@ import {
   resolveSquadPaths,
   type LoadedSquadConfig,
 } from './config.js';
-import { commitAll, createWorktree, listChangedFiles, removeWorktree, runGit } from './git.js';
+import { commitAll, createWorktree, listChangedFiles, removeWorktree, rollbackWorkingTree, runGit } from './git.js';
 import { mergeRun, type MergeReport } from './merge.js';
 import {
   buildPlannerPrompt,
@@ -168,6 +168,15 @@ export class SquadOrchestrator extends EventEmitter {
       );
       this.emit('run:start', { type: 'run:start', runId, plan } satisfies SquadEvent);
 
+      const isDirect = config.config.executionMode !== 'worktree';
+      if (isDirect) {
+        try {
+          await commitAll(repoPath, `squad: baseline before run ${runId}`);
+        } catch {
+          // ignore
+        }
+      }
+
       while (results.size < plan.tasks.length) {
         let progressed = false;
 
@@ -239,7 +248,6 @@ export class SquadOrchestrator extends EventEmitter {
         }
       }
 
-      const isDirect = config.config.executionMode !== 'worktree';
       if (isDirect && (config.config.maxReviewRounds ?? 0) > 0) {
         await this.runQAReviewLoop(runId, repoPath, plan.goal, results, logPaths, paths.worktreeDir);
       }
@@ -321,7 +329,21 @@ export class SquadOrchestrator extends EventEmitter {
       } else {
         const agent = await resolveAgent(this.options.config, task.role);
         agentName = agent.spec.cli ?? agent.spec.command?.[0];
-        const prompt = renderAgentPrompt(agent, task.prompt);
+
+        const targetFileList = task.files.length > 0
+          ? `\n\nTarget Files for this task:\n${task.files.map((f) => `- ${f}`).join('\n')}\n`
+          : '';
+
+        const strictGuidelines = `
+[TASK CONSTRAINTS & CODING GUIDELINES]
+1. TARGET FILES: Focus strictly on the assigned target files. Do NOT modify, delete, or rewrite root configuration files (package.json, squad.config.json, tsconfig.json, vite.config.ts) unless specifically instructed.
+2. TYPESCRIPT COMPILATION: Follow strict TypeScript rules. Every import must be used (no TS6133 unused variables/imports). Do NOT import React unless explicitly needed.
+3. DEPENDENCIES: Never import packages that do not exist in package.json. If utility functions (e.g. cn class merging) are needed, check existing files (e.g. apps/web/src/lib/utils.ts) or implement lightweight pure TypeScript helpers without adding uninstalled third-party packages.
+4. SYSTEM CONTINUITY: Keep the existing application components, UI shell, and routing intact. Integrate new visual styling or primitives harmoniously into the current layout without blanking out working features.
+`;
+
+        const taskPromptWithScope = `${task.prompt}${targetFileList}${strictGuidelines}`;
+        const prompt = renderAgentPrompt(agent, taskPromptWithScope);
         const command = renderAgentCommand(agent, prompt);
         const agentResult = await this.runProcess(
           runId,
@@ -382,18 +404,50 @@ export class SquadOrchestrator extends EventEmitter {
       if (status === 'passed') {
         changedFiles = await listChangedFiles(targetDir);
         await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
+      } else if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+          const rollbackMsg = `\n[squad:direct] Task ${task.id} did not pass verification (${status}). Rolled back working tree to clean state.\n`;
+          logChunks.push(rollbackMsg);
+          appendFileSync(logPath, rollbackMsg, 'utf8');
+          const event: SquadEvent = {
+            type: 'task:log',
+            runId,
+            taskId: task.id,
+            chunk: rollbackMsg,
+          };
+          this.options.store.appendEvent(event);
+          this.emit('task:log', event);
+        } catch {
+          // ignore rollback error
+        }
       }
     } catch (error) {
       status = activeTask.cancelled ? 'cancelled' : setupComplete ? 'error' : 'bootstrap_failed';
       errorMessage = this.errorMessage(error);
+      if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+        } catch {
+          // ignore
+        }
+      }
     }
 
     if (status === 'cancelled') {
-      try {
-        changedFiles = await listChangedFiles(targetDir);
-        await commitAll(targetDir, `squad(${task.id}): WIP (cancelled by user)`);
-      } catch (error) {
-        errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
+      if (isDirect) {
+        try {
+          await rollbackWorkingTree(targetDir);
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          changedFiles = await listChangedFiles(targetDir);
+          await commitAll(targetDir, `squad(${task.id}): WIP (cancelled by user)`);
+        } catch (error) {
+          errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
+        }
       }
     }
 

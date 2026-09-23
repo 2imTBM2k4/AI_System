@@ -6,6 +6,7 @@ import type {
   RunResponse,
   RunDetailResponse,
   CancelTaskResponse,
+  RetryTaskResponse,
   MergeResponse,
   PlanDto,
   ProviderConfigDto,
@@ -16,6 +17,9 @@ import type {
   RepoConfigResponse,
   UpdateRepoConfigRequest,
   SquadConfigDto,
+  ClarificationResultDto,
+  ChatMode,
+  ChatMessageResponse,
 } from '@squad/shared-types';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -70,6 +74,15 @@ export async function listRuns(repoId: string): Promise<ListRunsResponse> {
   return handleResponse<ListRunsResponse>(res);
 }
 
+export async function clarifyGoal(repoId: string, goal: string): Promise<ClarificationResultDto> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/clarify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal }),
+  });
+  return handleResponse<ClarificationResultDto>(res);
+}
+
 export async function createPlan(repoId: string, goal: string): Promise<PlanResponse> {
   const res = await fetch(`/repos/${encodeURIComponent(repoId)}/plan`, {
     method: 'POST',
@@ -77,6 +90,19 @@ export async function createPlan(repoId: string, goal: string): Promise<PlanResp
     body: JSON.stringify({ goal }),
   });
   return handleResponse<PlanResponse>(res);
+}
+
+export async function sendChatMessage(
+  repoId: string,
+  message: string,
+  mode: ChatMode = 'auto'
+): Promise<ChatMessageResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, mode }),
+  });
+  return handleResponse<ChatMessageResponse>(res);
 }
 
 export async function startRun(
@@ -105,6 +131,14 @@ export async function cancelTask(runId: string, taskId: string): Promise<CancelT
     { method: 'POST' }
   );
   return handleResponse<CancelTaskResponse>(res);
+}
+
+export async function retryTask(runId: string, taskId: string): Promise<RetryTaskResponse> {
+  const res = await fetch(
+    `/runs/${encodeURIComponent(runId)}/tasks/${encodeURIComponent(taskId)}/retry`,
+    { method: 'POST' }
+  );
+  return handleResponse<RetryTaskResponse>(res);
 }
 
 export async function mergeRun(runId: string): Promise<MergeResponse> {
@@ -153,3 +187,49 @@ export async function updateRepoConfig(
   });
   return handleResponse<RepoConfigResponse>(res);
 }
+
+export interface ServerHealthInfo {
+  status: string;
+  uptime: number;
+  timestamp: number;
+  registeredRepos: number;
+}
+
+export async function getServerHealth(): Promise<ServerHealthInfo> {
+  const res = await fetch('/health');
+  return handleResponse<ServerHealthInfo>(res);
+}
+
+export interface AgentFileInfo {
+  role: string;
+  filePath: string;
+  exists: boolean;
+  content: string;
+  candidatePaths: string[];
+}
+
+export interface SaveAgentFileResponse {
+  role: string;
+  filePath: string;
+  saved: boolean;
+}
+
+export async function getAgentFile(repoId: string, role: string): Promise<AgentFileInfo> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/agents/${encodeURIComponent(role)}/file`);
+  return handleResponse<AgentFileInfo>(res);
+}
+
+export async function saveAgentFile(
+  repoId: string,
+  role: string,
+  content: string,
+  filePath?: string
+): Promise<SaveAgentFileResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/agents/${encodeURIComponent(role)}/file`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, filePath }),
+  });
+  return handleResponse<SaveAgentFileResponse>(res);
+}
+

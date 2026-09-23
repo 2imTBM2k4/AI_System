@@ -1,142 +1,294 @@
 import React from 'react';
-import { History, Play, CheckCircle2, XCircle, Clock, RefreshCw } from 'lucide-react';
+import {
+  MessageSquarePlus,
+  MessageSquare,
+  Cpu,
+  Layers,
+  Puzzle,
+  Settings,
+  History,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+} from 'lucide-react';
 import type { RunRecordDto } from '@squad/shared-types';
-import { GlassBadge } from '../glass/GlassBadge';
+import type { ChatSession } from '../../lib/chatStorage';
+
+export type ActiveView = 'chat' | 'providers' | 'agents' | 'extensions' | 'settings' | 'history';
 
 interface SidebarProps {
+  activeView: ActiveView;
+  onSelectView: (view: ActiveView) => void;
   runs: RunRecordDto[];
   selectedRunId: string | null;
   onSelectRun: (runId: string) => void;
-  onRefresh: () => void;
+  onNewPlan: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  chatSessions?: ChatSession[];
+  activeSessionId?: string | null;
+  onSelectSession?: (sessionId: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  activeView,
+  onSelectView,
   runs,
   selectedRunId,
   onSelectRun,
-  onRefresh,
+  onNewPlan,
+  isCollapsed = false,
+  onToggleCollapse,
+  chatSessions = [],
+  activeSessionId,
+  onSelectSession,
+  onDeleteSession,
 }) => {
-  const getStatusBadge = (status: string) => {
+  const navItems: Array<{
+    id: ActiveView;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: number | string;
+  }> = [
+    {
+      id: 'chat',
+      label: 'Chat Lập Kế Hoạch',
+      icon: MessageSquarePlus,
+    },
+    {
+      id: 'providers',
+      label: 'Thiết Lập Nhà Cung Cấp Model',
+      icon: Cpu,
+    },
+    {
+      id: 'agents',
+      label: 'Thiết Lập Agent',
+      icon: Layers,
+    },
+    {
+      id: 'extensions',
+      label: 'Thiết Lập Skill & Plugin',
+      icon: Puzzle,
+    },
+    {
+      id: 'settings',
+      label: 'Cài Đặt',
+      icon: Settings,
+    },
+    {
+      id: 'history',
+      label: 'Lịch Sử Kế Hoạch Đã Thực Hiện',
+      icon: History,
+      badge: runs.length > 0 ? runs.length : undefined,
+    },
+  ];
+
+  const getStatusDot = (status: string) => {
     switch (status) {
       case 'running':
-        return (
-          <GlassBadge variant="amber" dot pulse>
-            <Play className="w-2.5 h-2.5 fill-amber-500 dark:fill-amber-400" />
-            <span>running</span>
-          </GlassBadge>
-        );
+        return <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />;
       case 'completed':
-      case 'passed':
-        return (
-          <GlassBadge variant="emerald" dot>
-            <CheckCircle2 className="w-2.5 h-2.5" />
-            <span>done</span>
-          </GlassBadge>
-        );
+        return <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />;
       case 'failed':
-      case 'error':
-        return (
-          <GlassBadge variant="rose" dot>
-            <XCircle className="w-2.5 h-2.5" />
-            <span>failed</span>
-          </GlassBadge>
-        );
-      case 'planned':
-        return (
-          <GlassBadge variant="cyan" dot>
-            <Clock className="w-2.5 h-2.5" />
-            <span>planned</span>
-          </GlassBadge>
-        );
+        return <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />;
       default:
-        return (
-          <GlassBadge variant="neutral">
-            <span>{status}</span>
-          </GlassBadge>
-        );
+        return <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] shrink-0" />;
     }
   };
 
   return (
-    <aside className="w-72 border-r border-black/[0.06] dark:border-white/[0.07] bg-white/50 dark:bg-zinc-950/40 backdrop-blur-xl flex flex-col shrink-0 h-[calc(100vh-4rem)] relative z-20 transition-colors duration-200">
-      {/* Sidebar Header */}
-      <div className="p-4 border-b border-black/[0.06] dark:border-white/[0.06] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-            Lịch sử Runs ({runs.length})
-          </h2>
-        </div>
+    <aside
+      className={`border-r border-[var(--color-warm-mist)] bg-[var(--sidebar-bg)] flex flex-col shrink-0 h-[calc(100vh-3.5rem)] relative z-20 transition-all duration-300 ${
+        isCollapsed ? 'w-18' : 'w-64'
+      }`}
+    >
+      {/* Top Header of Sidebar */}
+      <div className="p-3 border-b border-[var(--color-warm-mist)] flex items-center justify-between">
+        {!isCollapsed && (
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-6 h-6 rounded-lg bg-[var(--color-deep-teal)] flex items-center justify-center text-white shrink-0">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <div className="truncate">
+              <span className="font-medium text-xs tracking-tight text-[var(--text-primary)] block truncate">
+                Squad AI Orchestrator
+              </span>
+              <span className="text-[10px] text-[var(--text-muted)] font-mono block">Multi-Agent System</span>
+            </div>
+          </div>
+        )}
+
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className={`p-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors cursor-pointer ${
+              isCollapsed ? 'mx-auto' : ''
+            }`}
+            title={isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+          >
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+
+      {/* Primary Action Button: + Kế hoạch mới */}
+      <div className="p-3">
         <button
           type="button"
-          onClick={onRefresh}
-          className="p-1.5 hover:bg-black/[0.05] dark:hover:bg-white/[0.06] rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all active:rotate-180 duration-300 cursor-pointer"
-          title="Làm mới lịch sử"
+          onClick={onNewPlan}
+          className={`w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--color-deep-teal)] hover:bg-[var(--color-deep-teal-hover)] active:scale-[0.98] text-white font-medium text-xs py-2 px-3 transition-all duration-150 cursor-pointer shadow-[var(--shadow-subtle)] ${
+            isCollapsed ? 'p-2' : ''
+          }`}
+          title="Tạo Kế Hoạch Mới"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <MessageSquarePlus className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span>+ Kế Hoạch Mới</span>}
         </button>
       </div>
 
-      {/* Runs List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-        {runs.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-xl border border-dashed border-black/[0.08] dark:border-white/[0.06] bg-black/[0.01] dark:bg-white/[0.01]">
-            <Clock className="w-8 h-8 mx-auto text-zinc-400 dark:text-zinc-600 mb-2" />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Chưa có run nào trên repo này</p>
-          </div>
-        ) : (
-          runs.map((run) => {
-            const isSelected = run.id === selectedRunId;
-            const shortId = run.id.slice(0, 8);
-            const dateStr = new Date(run.createdAt).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            });
+      {/* Main Navigation Menu */}
+      <div className="px-2.5 py-1.5 space-y-1">
+        <div className={`px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] font-mono ${isCollapsed ? 'hidden' : 'block'}`}>
+          Chức Năng Chính
+        </div>
 
-            return (
-              <button
-                key={run.id}
-                type="button"
-                onClick={() => onSelectRun(run.id)}
-                className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 cursor-pointer relative overflow-hidden backdrop-blur-md select-none ${
-                  isSelected
-                    ? 'bg-indigo-50/90 dark:bg-indigo-500/[0.12] border-indigo-400 dark:border-indigo-500/50 shadow-[0_4px_20px_rgba(99,102,241,0.12)] ring-1 ring-indigo-500/30'
-                    : 'bg-white/60 dark:bg-white/[0.025] border-black/[0.06] dark:border-white/[0.06] hover:bg-white/90 dark:hover:bg-white/[0.06] hover:border-black/15 dark:hover:border-white/[0.14]'
-                }`}
-              >
-                {/* Specular edge for selected run card */}
-                {isSelected && (
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/40 dark:via-indigo-300/40 to-transparent pointer-events-none"
-                  />
-                )}
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeView === item.id;
 
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-mono text-xs font-bold text-zinc-800 dark:text-zinc-300">
-                    #{shortId}
-                  </span>
-                  {getStatusBadge(run.status)}
-                </div>
-
-                <p className="text-xs text-zinc-800 dark:text-zinc-200 line-clamp-2 font-medium mb-2.5 leading-snug">
-                  {run.goal || 'Không có mô tả mục tiêu'}
-                </p>
-
-                <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-mono pt-1 border-t border-black/[0.05] dark:border-white/[0.04]">
-                  <span>{dateStr}</span>
-                  {run.plan?.tasks && (
-                    <span className="px-1.5 py-0.5 rounded bg-black/[0.03] dark:bg-white/[0.04] text-zinc-600 dark:text-zinc-400 border border-black/[0.05] dark:border-white/[0.05]">
-                      {run.plan.tasks.length} tasks
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelectView(item.id)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-normal transition-all duration-150 cursor-pointer select-none text-left ${
+                isActive
+                  ? 'active-nav-item'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
+              } ${isCollapsed ? 'justify-center px-2' : ''}`}
+              title={isCollapsed ? item.label : undefined}
+            >
+              <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[var(--text-secondary)]'}`} />
+              {!isCollapsed && (
+                <div className="flex-1 flex items-center justify-between truncate">
+                  <span className="truncate">{item.label}</span>
+                  {item.badge !== undefined && (
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-black/[0.05] dark:bg-white/[0.08] text-[var(--text-muted)]'
+                    }`}>
+                      {item.badge}
                     </span>
                   )}
                 </div>
-              </button>
-            );
-          })
-        )}
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Chats and Tasks (Lịch sử chat) */}
+      {!isCollapsed && (
+        <div className="flex-1 flex flex-col min-h-0 pt-2 border-t border-[var(--color-warm-mist)]">
+          {(() => {
+            const validSessions = chatSessions.filter(
+              (s) =>
+                Boolean(s.runId) ||
+                (s.messages && s.messages.some((m) => m.sender === 'user'))
+            );
+
+            return (
+              <>
+                <div className="px-4 py-1.5 flex items-center justify-between">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] font-mono">
+                    Lịch Sử Chat ({validSessions.length})
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-0.5">
+                  {validSessions.length === 0 ? (
+                    <div className="text-center py-6 px-3 text-xs text-[var(--text-muted)] font-mono">
+                      Chưa có cuộc trò chuyện nào
+                    </div>
+                  ) : (
+                    validSessions.map((session) => {
+                      const isSelected =
+                        (session.id === activeSessionId && activeView === 'chat') ||
+                        (session.runId && session.runId === selectedRunId && activeView === 'chat');
+                      const linkedRun = session.runId ? runs.find((r) => r.id === session.runId) : null;
+
+                      return (
+                        <div
+                          key={session.id}
+                          onClick={() => {
+                            if (session.runId && onSelectRun) {
+                              onSelectRun(session.runId);
+                            }
+                            if (onSelectSession) {
+                              onSelectSession(session.id);
+                            }
+                            onSelectView('chat');
+                          }}
+                          className={`group w-full text-left px-3 py-1.5 rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-between gap-2 text-xs select-none ${
+                            isSelected
+                              ? 'bg-[var(--color-deep-teal)]/10 text-[var(--color-deep-teal)] dark:text-teal-300 font-medium border border-[var(--color-deep-teal)]/30'
+                              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            {linkedRun ? (
+                              getStatusDot(linkedRun.status)
+                            ) : (
+                              <MessageSquare className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                            )}
+                            <span className="truncate text-[11px]" title={session.title}>
+                              {session.title}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {onDeleteSession && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteSession(session.id);
+                                }}
+                                className="p-1 rounded text-[var(--text-muted)] hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Xóa cuộc trò chuyện này"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                            {session.runId && (
+                              <span className="font-mono text-[9px] text-[var(--text-muted)]">
+                                #{session.runId.slice(0, 6)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Bottom Footer info */}
+      {!isCollapsed && (
+        <div className="p-2.5 border-t border-[var(--color-warm-mist)]">
+          <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] font-mono">
+            <span>Squad Engine</span>
+            <span>v0.1.0</span>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };
+

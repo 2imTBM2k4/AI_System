@@ -137,6 +137,36 @@ describe('Server runs API routes', () => {
     expect(runRes.json().run.status).toBe('planned');
   });
 
+  it('handles POST /repos/:id/chat in ask, plan, and auto modes', async () => {
+    activeRegistry = await RepoRegistry.open(registryHome);
+    const { repo } = await activeRegistry.register(repoPath);
+    activeApp = await buildServer({ registry: activeRegistry });
+    const app = activeApp;
+
+    // Test ask mode
+    const askRes = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo.id}/chat`,
+      payload: { message: 'How does this project work?', mode: 'ask' },
+    });
+    expect(askRes.statusCode).toBe(200);
+    const askBody = askRes.json();
+    expect(askBody.type).toBe('answer');
+    expect(typeof askBody.reply).toBe('string');
+
+    // Test plan mode
+    const planRes = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo.id}/chat`,
+      payload: { message: 'Build auth module', mode: 'plan' },
+    });
+    expect(planRes.statusCode).toBe(200);
+    const planBody = planRes.json();
+    expect(planBody.type).toBe('plan');
+    expect(planBody.runId).toBeDefined();
+    expect(planBody.plan.tasks).toHaveLength(1);
+  });
+
   it('runs a plan in background, stream events via SSE, and completes successfully', async () => {
     activeRegistry = await RepoRegistry.open(registryHome);
     const { repo } = await activeRegistry.register(repoPath);
@@ -462,4 +492,79 @@ describe('Server runs API routes', () => {
     expect(secondDetail.statusCode).toBe(200);
     expect(secondDetail.json().tasks[0].status).toBe('passed');
   });
+
+  it('allows retrying a failed task in a historical run and updates its status', async () => {
+    activeRegistry = await RepoRegistry.open(registryHome);
+    const { repo } = await activeRegistry.register(repoPath);
+    activeApp = await buildServer({ registry: activeRegistry });
+    const app = activeApp;
+
+    const failingPlan: Plan = {
+      goal: 'test retry',
+      tasks: [{
+        id: 'retryable-task',
+        title: 'Retryable Task',
+        role: 'failing',
+        files: [],
+        dependsOn: [],
+        prompt: 'retry me',
+        branch: 'squad/retryable-task',
+      }],
+    };
+
+    const runRes = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo.id}/runs`,
+      payload: { plan: failingPlan },
+    });
+    expect(runRes.statusCode).toBe(201);
+    const { id: runId } = runRes.json().run;
+
+    // Stream SSE to wait until run finishes
+    await app.inject({ method: 'GET', url: `/runs/${runId}/events` });
+
+    // Verify task failed
+    const detailBefore = await app.inject({ method: 'GET', url: `/runs/${runId}` });
+    expect(detailBefore.json().tasks[0].status).toBe('agent_failed');
+
+    // Fix the agent script so it passes on retry
+    const failingAgentScript = join(fixtureRoot, 'failing-agent.cjs');
+    await writeFile(
+      failingAgentScript,
+      "const fs=require('node:fs'); fs.writeFileSync('fixed.txt','ok\\n'); process.exit(0);\n",
+    );
+
+    // Test 404 on invalid run/task
+    const notFoundRun = await app.inject({
+      method: 'POST',
+      url: '/runs/non-existent-run/tasks/retryable-task/retry',
+    });
+    expect(notFoundRun.statusCode).toBe(404);
+
+    const notFoundTask = await app.inject({
+      method: 'POST',
+      url: `/runs/${runId}/tasks/non-existent-task/retry`,
+    });
+    expect(notFoundTask.statusCode).toBe(404);
+
+    // Trigger retry
+    const retryRes = await app.inject({
+      method: 'POST',
+      url: `/runs/${runId}/tasks/retryable-task/retry`,
+    });
+    expect(retryRes.statusCode).toBe(200);
+    expect(retryRes.json().taskId).toBe('retryable-task');
+
+    // Poll until retry finishes and task is passed
+    let retriedTask;
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const res = await app.inject({ method: 'GET', url: `/runs/${runId}` });
+      retriedTask = res.json().tasks.find((t: any) => t.id === 'retryable-task');
+      if (retriedTask?.status === 'passed') break;
+    }
+
+    expect(retriedTask?.status).toBe('passed');
+  });
 });
+

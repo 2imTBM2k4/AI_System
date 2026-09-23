@@ -656,7 +656,30 @@ mỗi lần live listener bắn → gọi lại flushNewEvents() (không dùng p
 
 ---
 
-## 5. Việc phụ, làm khi rảnh (không chặn 3 phase trên)
+## 5. Phase 4 — Liquid Glass Redesign & Extensions (Đã hoàn thành 100%)
+
+- **Liquid Glass Design System**:
+  - Tích hợp hiệu ứng kính mờ (frosted blur, specular border highlight, ambient glows, glass buttons, glass badges, glass cards).
+  - Dual Theme: Hỗ trợ chuyển đổi nhanh Dark Mode (Obsidian) và Light Mode (Crystal Milk Glass).
+- **Real-Time Server Status**:
+  - Hiển thị trên Header: Live latency ping (`ms`) đo round-trip tới `/health`, chấm trạng thái SSE stream, popover chi tiết uptime và repository.
+- **Dynamic Agents & Role Customization**:
+  - Thêm không giới hạn agent/vai trò tùy chỉnh (Role Key, Display Name, CLI, Model).
+  - Tùy biến nhiệm vụ và chỉ dẫn nghiệp vụ riêng (`duty` / prompt guidelines) cho từng vai trò.
+- **Skills, MCP & Plugins Hub**:
+  - Quản lý MCP Servers (Model Context Protocol) với lệnh và tham số thực thi.
+  - Quản lý Skills và Plugins tích hợp trong repo, tự động lưu vào `squad.config.json`.
+- **Live Terminal Logs**:
+  - Nút CTA `⚡ Xem Live Logs (Agent đang chạy...)` trên thẻ task running.
+  - Terminal Drawer với banner `🔴 LIVE STREAMING`, tab chuyển đổi giữa các running tasks, con trỏ terminal nhấp nháy theo thời gian thực.
+- **Tùy Biến Làn Kanban**:
+  - Bổ sung chế độ xem Làn Ngang (Horizontal Lanes) song song với Cột Dọc (4 Columns Grid), lưu lựa chọn trong `localStorage`.
+- **Testing & Stability**:
+  - Tăng tổng số bài test lên **84/84 tests pass** trên toàn bộ monorepo (core: 39, cli: 8, server: 18, web: 19).
+
+---
+
+## 6. Việc phụ, làm khi rảnh (không chặn các phase trên)
 
 - Đổi tên nếu định publish npm — `squad` gần chắc đã có người dùng, kiểm tra `npmi view squad` trước khi quyết định (`@silentboiz/squad` là lựa chọn an toàn, scoped name không đụng ai).
 - `docs/adr/0001-monorepo-pnpm.md`, `0002-typescript.md` — ghi lại lý do quyết định kiến trúc. Nhỏ nhưng là thứ khiến repo "trông chuyên nghiệp" khi người khác (nhà tuyển dụng) đọc.

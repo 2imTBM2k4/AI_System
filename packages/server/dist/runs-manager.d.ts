@@ -1,7 +1,7 @@
-import { type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
+import { type ClarificationResult, type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
 import { RepoRegistry } from './registry.js';
 export declare class RunsManagerError extends Error {
-    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
+    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'TASK_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
     constructor(code: RunsManagerError['code'], message: string);
 }
 export interface StartRunResult {
@@ -25,10 +25,22 @@ export declare class RunsManager {
     constructor(registry: RepoRegistry);
     /** Gracefully cleans up all open stores and active runs when the server stops. */
     close(): Promise<void>;
+    /** Evaluates whether the goal needs clarification (Step 0) before PM planning. */
+    clarifyGoal(repoId: string, goal: string): Promise<ClarificationResult>;
     /** Lists the newest runs for a repository directly from its SQLite store. */
     listRuns(repoId: string, limit?: number): Promise<RunRecord[]>;
     /** Invokes the planner agent on a repository and creates a planned run row. */
     makePlan(repoId: string, goal: string): Promise<{
+        runId: string;
+        plan: Plan;
+        warnings: FileConflict[];
+    }>;
+    /** Handles chat message: answers questions directly or plans multi-agent tasks. */
+    handleChat(repoId: string, message: string, mode?: 'auto' | 'ask' | 'plan'): Promise<{
+        type: 'answer';
+        reply: string;
+    } | {
+        type: 'plan';
         runId: string;
         plan: Plan;
         warnings: FileConflict[];
@@ -48,6 +60,11 @@ export declare class RunsManager {
     getRunDetail(runId: string): Promise<RunDetail>;
     /** Requests task cancellation on an active orchestrator. */
     cancelTask(runId: string, taskId: string): void;
+    /** Retries a failed or skipped task on a run. */
+    retryTask(runId: string, taskId: string): Promise<{
+        runId: string;
+        taskId: string;
+    }>;
     /** Executes mergeRun on a finished run, integrating passed task branches. */
     mergeRun(runId: string): Promise<MergeReport>;
     /**

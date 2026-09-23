@@ -1,3 +1,31 @@
-node_modules
-node_modules
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Squad runtime state & SQLite databases
 .squad/
+
+# Production build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage/
+.coverage/
+
+# OS metadata
+.DS_Store
+Thumbs.db

@@ -146,18 +146,33 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.05] flex items-center justify-between text-xs">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenLog(task.id);
-          }}
-          className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors font-mono cursor-pointer"
-        >
-          <Terminal className="w-3.5 h-3.5" />
-          <span>Logs</span>
-        </button>
+      <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.05] flex items-center justify-between text-xs gap-2">
+        {task.status === 'running' ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenLog(task.id);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-mono text-[11px] font-bold transition-all shadow-[0_0_12px_rgba(245,158,11,0.25)] cursor-pointer group/log"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+            <Terminal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span>⚡ Xem Live Logs</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenLog(task.id);
+            }}
+            className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors font-mono cursor-pointer"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Logs</span>
+          </button>
+        )}
 
         {task.status === 'running' && (
           <button

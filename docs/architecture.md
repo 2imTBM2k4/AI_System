@@ -109,3 +109,33 @@ task `passed`.
     và không chặn cleanup worktree hay task khác.
 7. Mỗi lệnh CLI mở runtime đều chạy reconciliation trước. Server Phase 2 sẽ
    chạy cùng cơ chế cho từng repo trong registry trước khi nhận request.
+
+---
+
+## Phase 2 & 3: Server & Web Architecture
+
+### Fastify REST API & SSE Replay
+- `@squad/server` đóng vai trò API Gateway trung tâm tại port 4317.
+- Cơ chế SSE (`/runs/:id/events`): Kết hợp đọc replay từ bảng `events` trong SQLite kết hợp lắng nghe live stream `EventEmitter` từ `SquadOrchestrator`, đảm bảo không bỏ sót log kể cả khi client reconnect.
+- Health Monitor endpoint (`GET /health`): Cung cấp trạng thái uptime, timestamp, số lượng repository đang quản lý để web client đo độ trễ round-trip (ping latency `ms`).
+- Ràng buộc "1 Active Run / Repo": Chống xung đột branch git và bảo toàn tính toàn vẹn trạng thái.
+
+---
+
+## Phase 4: Extensions, Dynamic Agents & Liquid Glass Dashboard
+
+### 1. Dynamic Agent Roles & Duty Customization
+- Cho phép mở rộng không giới hạn các vai trò agent (`repoConfig.agents`).
+- Mỗi agent spec hỗ trợ trường `duty`: quy định phạm vi nghiệp vụ và hướng dẫn prompt riêng cho agent khi thực thi tác vụ.
+- Hỗ trợ đa dạng công cụ thực thi: Claude Code CLI, Codex CLI, Gemini CLI, và 9Router Direct Gateway Runner.
+
+### 2. Extensibility: Skills, MCP Servers & Plugins
+- **MCP Servers (`mcpServers`)**: Tuân thủ chuẩn Model Context Protocol (MCP), hỗ trợ khởi chạy qua `npx` hoặc `node` để kết nối công cụ ngoài (Filesystem, Database, Git, Web Search).
+- **Skills (`skills`)**: Nạp các cheatsheet và workflow nghiệp vụ tùy chỉnh cho từng repo.
+- **Plugins (`plugins`)**: Kích hoạt các gói mở rộng phân tích mã nguồn và bảo mật.
+
+### 3. Liquid Glass UI & Flexible Kanban Board
+- Hệ thống giao diện kính mờ Liquid Glass (frosted blur 20px, specular highlights, dark/light mode toggle).
+- Chế độ xem **Làn Ngang (Horizontal Lanes)** và **Cột Dọc (4 Columns Grid)** với khả năng chuyển đổi tức thì và lưu trữ `localStorage`.
+- Live Terminal Logs Drawer với banner streaming, PID badge, tab chuyển đổi giữa các agent đang chạy song song, và con trỏ terminal nhấp nháy thời gian thực.
+

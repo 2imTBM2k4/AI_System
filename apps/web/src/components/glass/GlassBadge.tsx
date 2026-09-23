@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../lib/utils';
 
 export interface GlassBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'neutral' | 'indigo' | 'emerald' | 'amber' | 'rose' | 'cyan' | 'purple';
+  variant?: 'neutral' | 'teal' | 'indigo' | 'emerald' | 'amber' | 'rose' | 'cyan' | 'purple';
   dot?: boolean;
   pulse?: boolean;
 }
@@ -17,42 +17,45 @@ export const GlassBadge: React.FC<GlassBadgeProps> = ({
 }) => {
   const styles = {
     neutral:
-      'bg-black/[0.04] dark:bg-zinc-800/60 border-black/10 dark:border-zinc-700/50 text-zinc-700 dark:text-zinc-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.4)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]',
+      'bg-black/[0.03] dark:bg-white/[0.04] border border-[var(--color-warm-mist)] text-[var(--text-secondary)]',
+    teal:
+      'bg-[var(--color-deep-teal)] border border-[var(--color-deep-teal)] text-white',
     indigo:
-      'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(129,140,248,0.2)]',
+      'bg-[var(--color-deep-teal)]/10 dark:bg-[var(--color-deep-teal)]/20 border border-[var(--color-deep-teal)]/30 text-[var(--color-deep-teal)] dark:text-teal-300',
     emerald:
-      'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]',
+      'bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
     amber:
-      'bg-amber-50 dark:bg-amber-500/15 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(251,191,36,0.2)]',
+      'bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 text-amber-800 dark:text-amber-300',
     rose:
-      'bg-rose-50 dark:bg-rose-500/15 border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(251,113,133,0.2)]',
+      'bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/30 text-rose-700 dark:text-rose-300',
     cyan:
-      'bg-cyan-50 dark:bg-cyan-500/15 border-cyan-200 dark:border-cyan-500/30 text-cyan-800 dark:text-cyan-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(34,211,238,0.2)]',
+      'bg-cyan-500/10 dark:bg-cyan-500/20 border border-cyan-500/30 text-cyan-800 dark:text-cyan-300',
     purple:
-      'bg-purple-50 dark:bg-purple-500/15 border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(192,132,252,0.2)]',
+      'bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/30 text-purple-700 dark:text-purple-300',
   };
 
   const dotColors = {
-    neutral: 'bg-zinc-500 dark:bg-zinc-400',
-    indigo: 'bg-indigo-600 dark:bg-indigo-400',
-    emerald: 'bg-emerald-600 dark:bg-emerald-400',
-    amber: 'bg-amber-600 dark:bg-amber-400',
-    rose: 'bg-rose-600 dark:bg-rose-400',
-    cyan: 'bg-cyan-600 dark:bg-cyan-400',
-    purple: 'bg-purple-600 dark:bg-purple-400',
+    neutral: 'bg-[var(--color-graphite)]',
+    teal: 'bg-white',
+    indigo: 'bg-[var(--color-deep-teal)]',
+    emerald: 'bg-emerald-500',
+    amber: 'bg-amber-500',
+    rose: 'bg-rose-500',
+    cyan: 'bg-cyan-500',
+    purple: 'bg-purple-500',
   };
 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold backdrop-blur-md border transition-all select-none',
+        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all select-none',
         styles[variant],
         className
       )}
       {...props}
     >
       {dot && (
-        <span className="relative flex h-1.5 w-1.5">
+        <span className="relative flex h-1.5 w-1.5 shrink-0">
           {pulse && (
             <span
               className={cn(
@@ -70,3 +73,4 @@ export const GlassBadge: React.FC<GlassBadgeProps> = ({
     </span>
   );
 };
+

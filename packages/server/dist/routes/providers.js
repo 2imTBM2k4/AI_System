@@ -108,5 +108,71 @@ export const registerProvidersRoutes = async (app, options) => {
             });
         }
     });
+    // GET /repos/:id/agents/:role/file
+    app.get('/repos/:id/agents/:role/file', {
+        schema: {
+            params: {
+                type: 'object',
+                required: ['id', 'role'],
+                properties: {
+                    id: { type: 'string' },
+                    role: { type: 'string' },
+                },
+            },
+        },
+    }, async (request, reply) => {
+        const repo = registry.get(request.params.id);
+        if (!repo) {
+            return reply.code(404).send({
+                error: { code: 'REPO_NOT_FOUND', message: `Repository ${request.params.id} not found.` },
+            });
+        }
+        try {
+            const result = await providersManager.getAgentMarkdownFile(repo.path, request.params.role);
+            return reply.code(200).send(result);
+        }
+        catch (error) {
+            return reply.code(400).send({
+                error: { code: 'AGENT_FILE_READ_ERROR', message: error instanceof Error ? error.message : String(error) },
+            });
+        }
+    });
+    // PUT /repos/:id/agents/:role/file
+    app.put('/repos/:id/agents/:role/file', {
+        schema: {
+            params: {
+                type: 'object',
+                required: ['id', 'role'],
+                properties: {
+                    id: { type: 'string' },
+                    role: { type: 'string' },
+                },
+            },
+            body: {
+                type: 'object',
+                required: ['content'],
+                properties: {
+                    content: { type: 'string' },
+                    filePath: { type: 'string' },
+                },
+            },
+        },
+    }, async (request, reply) => {
+        const repo = registry.get(request.params.id);
+        if (!repo) {
+            return reply.code(404).send({
+                error: { code: 'REPO_NOT_FOUND', message: `Repository ${request.params.id} not found.` },
+            });
+        }
+        try {
+            const result = await providersManager.saveAgentMarkdownFile(repo.path, request.params.role, request.body.content, request.body.filePath);
+            return reply.code(200).send(result);
+        }
+        catch (error) {
+            return reply.code(400).send({
+                error: { code: 'AGENT_FILE_SAVE_ERROR', message: error instanceof Error ? error.message : String(error) },
+            });
+        }
+    });
 };
 //# sourceMappingURL=providers.js.map

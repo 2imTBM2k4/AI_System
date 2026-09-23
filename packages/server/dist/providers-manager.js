@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { loadSquadConfig, parseSquadConfig, } from '@squad/core';
+import { join, resolve, dirname } from 'node:path';
+import { getAgentPromptCandidates, loadSquadConfig, parseSquadConfig, } from '@squad/core';
 import { squadHome } from './registry.js';
 const PROVIDERS_FILE = 'providers.json';
 export const DEFAULT_PROVIDERS = [
@@ -223,6 +223,77 @@ export class ProvidersManager {
         const configPath = resolve(repoPath, 'squad.config.json');
         await writeFile(configPath, JSON.stringify(validated, null, 2), 'utf8');
         return validated;
+    }
+    getDefaultAgentMarkdown(role) {
+        const roleName = role.toUpperCase();
+        return `---
+cli: codex
+model: 
+duty: Chuyên viên ${role} phụ trách xử lý và thực thi task
+description: Agent phụ trách vai trò ${role} trong squad
+---
+
+# Hướng dẫn nghiệp vụ cho Agent (${roleName})
+
+## Mục tiêu
+Đảm bảo các yêu cầu liên quan đến vai trò ${role} được thực thi chuẩn xác, sạch sẽ và tuân thủ cấu trúc của dự án.
+
+## Quy tắc thực hiện
+1. Đọc kỹ yêu cầu công việc được giao trong prompt.
+2. Kiểm tra các file liên quan trước khi sửa đổi.
+3. Chạy kiểm thử tự động (test / lint) sau khi chỉnh sửa code.
+4. Báo cáo chi tiết kết quả thực hiện.
+`;
+    }
+    async getAgentMarkdownFile(repoPath, role) {
+        let customPromptFile;
+        try {
+            const config = await this.getRepoConfig(repoPath);
+            customPromptFile = config.agents[role]?.promptFile;
+        }
+        catch {
+            // Squad config might not exist or role not defined
+        }
+        const candidatePaths = getAgentPromptCandidates(role, customPromptFile);
+        for (const candidate of candidatePaths) {
+            const absPath = resolve(repoPath, candidate);
+            try {
+                const content = await readFile(absPath, 'utf8');
+                return {
+                    role,
+                    filePath: candidate,
+                    exists: true,
+                    content,
+                    candidatePaths,
+                };
+            }
+            catch (error) {
+                if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+                    // Ignore ENOENT and try next
+                }
+            }
+        }
+        // None found; return starter template with standard agent_<role>.md filename
+        const defaultFilePath = `agent_${role}.md`;
+        return {
+            role,
+            filePath: defaultFilePath,
+            exists: false,
+            content: this.getDefaultAgentMarkdown(role),
+            candidatePaths,
+        };
+    }
+    async saveAgentMarkdownFile(repoPath, role, content, targetFilePath) {
+        const relativePath = targetFilePath?.trim() || `agent_${role}.md`;
+        const absPath = resolve(repoPath, relativePath);
+        // Ensure directory exists if path has subdirectories
+        await mkdir(dirname(absPath), { recursive: true });
+        await writeFile(absPath, content, 'utf8');
+        return {
+            role,
+            filePath: relativePath,
+            saved: true,
+        };
     }
 }
 //# sourceMappingURL=providers-manager.js.map

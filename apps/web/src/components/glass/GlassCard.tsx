@@ -10,24 +10,24 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   children,
   className,
   variant = 'default',
-  specular = true,
+  specular = false,
   ...props
 }) => {
   const variantStyles = {
     default:
-      'bg-white/70 dark:bg-zinc-900/40 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]',
+      'bg-[var(--card-bg)] border border-[var(--card-border)] shadow-[var(--shadow-subtle)] text-[var(--text-primary)]',
     elevated:
-      'bg-white/85 dark:bg-zinc-900/60 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.12] shadow-[0_16px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.45)]',
+      'bg-[var(--card-bg)] border border-[var(--card-border)] shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.4)] text-[var(--text-primary)]',
     interactive:
-      'liquid-glass-card cursor-pointer',
+      'bg-[var(--card-bg)] border border-[var(--card-border)] shadow-[var(--shadow-subtle)] hover:border-[var(--color-deep-teal)]/40 hover:-translate-y-0.5 cursor-pointer text-[var(--text-primary)]',
     'glow-indigo':
-      'bg-indigo-50/70 dark:bg-indigo-950/20 backdrop-blur-xl border border-indigo-500/25 dark:border-indigo-500/30 shadow-[0_0_25px_rgba(99,102,241,0.08)] dark:shadow-[0_0_30px_rgba(99,102,241,0.15)]',
+      'bg-[var(--card-bg)] border border-[var(--color-deep-teal)]/30 text-[var(--text-primary)]',
     'glow-amber':
-      'bg-amber-50/70 dark:bg-amber-950/20 backdrop-blur-xl border border-amber-500/25 dark:border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.08)] dark:shadow-[0_0_30px_rgba(245,158,11,0.15)]',
+      'bg-amber-500/[0.04] dark:bg-amber-500/10 border border-amber-500/30 text-[var(--text-primary)]',
     'glow-emerald':
-      'bg-emerald-50/70 dark:bg-emerald-950/20 backdrop-blur-xl border border-emerald-500/25 dark:border-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.08)] dark:shadow-[0_0_30px_rgba(16,185,129,0.15)]',
+      'bg-emerald-500/[0.04] dark:bg-emerald-500/10 border border-emerald-500/30 text-[var(--text-primary)]',
     'glow-rose':
-      'bg-rose-50/70 dark:bg-rose-950/20 backdrop-blur-xl border border-rose-500/25 dark:border-rose-500/30 shadow-[0_0_25px_rgba(244,63,94,0.08)] dark:shadow-[0_0_30px_rgba(244,63,94,0.15)]',
+      'bg-rose-500/[0.04] dark:bg-rose-500/10 border border-rose-500/30 text-[var(--text-primary)]',
   };
 
   return (
@@ -35,19 +35,12 @@ export const GlassCard: React.FC<GlassCardProps> = ({
       className={cn(
         'rounded-2xl relative overflow-hidden transition-all duration-200',
         variantStyles[variant],
-        specular && 'specular-border',
         className
       )}
       {...props}
     >
-      {/* Specular edge reflection overlay */}
-      {specular && (
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 dark:via-white/20 to-transparent pointer-events-none"
-        />
-      )}
       {children}
     </div>
   );
 };
+

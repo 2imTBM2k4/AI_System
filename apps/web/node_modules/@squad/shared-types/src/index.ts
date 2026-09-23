@@ -107,6 +107,25 @@ export interface PlanResponse {
   warnings: FileConflictDto[];
 }
 
+export type ChatMode = 'auto' | 'ask' | 'plan';
+
+export interface ChatMessageRequest {
+  message: string;
+  mode?: ChatMode;
+}
+
+export type ChatMessageResponse =
+  | {
+      type: 'answer';
+      reply: string;
+    }
+  | {
+      type: 'plan';
+      runId: string;
+      plan: PlanDto;
+      warnings: FileConflictDto[];
+    };
+
 export interface CreateRunRequest {
   runId?: string;
   plan?: PlanDto;
@@ -122,6 +141,12 @@ export interface RunDetailResponse {
 }
 
 export interface CancelTaskResponse {
+  message: string;
+  taskId: string;
+  runId: string;
+}
+
+export interface RetryTaskResponse {
   message: string;
   taskId: string;
   runId: string;
@@ -187,6 +212,37 @@ export interface AgentSpecDto {
   command?: string[];
   env?: Record<string, string>;
   promptFile?: string;
+  duty?: string;
+  description?: string;
+}
+
+export interface McpServerDto {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled: boolean;
+}
+
+export interface SkillConfigDto {
+  name: string;
+  description?: string;
+  path?: string;
+  enabled: boolean;
+}
+
+export interface PluginConfigDto {
+  name: string;
+  version?: string;
+  enabled: boolean;
+  options?: Record<string, unknown>;
+}
+
+export interface ServerHealthDto {
+  status: string;
+  uptime: number;
+  timestamp: number;
+  registeredRepos: number;
 }
 
 export interface SquadConfigDto {
@@ -205,6 +261,9 @@ export interface SquadConfigDto {
   copyFiles?: string[];
   verify?: string[];
   agents: Record<string, AgentSpecDto>;
+  mcpServers?: Record<string, McpServerDto>;
+  skills?: Record<string, SkillConfigDto>;
+  plugins?: Record<string, PluginConfigDto>;
 }
 
 export interface ProviderConfigDto {
@@ -244,4 +303,40 @@ export interface RepoConfigResponse {
 export interface UpdateRepoConfigRequest {
   config: SquadConfigDto;
 }
+
+export interface ClarificationQuestionDto {
+  id: string;
+  question: string;
+  reason?: string;
+  answered?: string;
+}
+
+export interface ClarificationResultDto {
+  isClear: boolean;
+  questions: ClarificationQuestionDto[];
+  summary?: string;
+}
+
+export interface TechLeadContractDto {
+  architectureSummary: string;
+  endpoints: {
+    method: string;
+    path: string;
+    description: string;
+    requestSchema?: string;
+    responseSchema?: string;
+  }[];
+  databaseSchemaOverview?: string;
+  sharedRules: string[];
+  markdownDocument?: string;
+}
+
+export interface DevOpsReportDto {
+  buildSuccess: boolean;
+  artifactsCreated: string[];
+  deploymentInstructions: string;
+  status: 'ready' | 'failed';
+  summary: string;
+}
+
 

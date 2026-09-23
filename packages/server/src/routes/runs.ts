@@ -42,6 +42,36 @@ export const registerRunsRoutes: FastifyPluginAsync<RunsRoutesOptions> = async (
     },
   );
 
+  // POST /repos/:id/clarify (Step 0 in workflow)
+  app.post<{
+    Params: { id: string };
+    Body: { goal: string };
+  }>(
+    '/repos/:id/clarify',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', minLength: 1 } },
+        },
+        body: {
+          type: 'object',
+          required: ['goal'],
+          properties: { goal: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const result = await runsManager.clarifyGoal(request.params.id, request.body.goal || '');
+        return reply.code(200).send(result);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    },
+  );
+
   // POST /repos/:id/plan
   app.post<{
     Params: { id: string };
@@ -66,6 +96,43 @@ export const registerRunsRoutes: FastifyPluginAsync<RunsRoutesOptions> = async (
       try {
         const result = await runsManager.makePlan(request.params.id, request.body.goal);
         return reply.code(201).send(result);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    },
+  );
+
+  // POST /repos/:id/chat
+  app.post<{
+    Params: { id: string };
+    Body: { message: string; mode?: 'auto' | 'ask' | 'plan' };
+  }>(
+    '/repos/:id/chat',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', minLength: 1 } },
+        },
+        body: {
+          type: 'object',
+          required: ['message'],
+          properties: {
+            message: { type: 'string', minLength: 1 },
+            mode: { type: 'string', enum: ['auto', 'ask', 'plan'] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const result = await runsManager.handleChat(
+          request.params.id,
+          request.body.message,
+          request.body.mode ?? 'auto',
+        );
+        return reply.code(200).send(result);
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -215,6 +282,35 @@ export const registerRunsRoutes: FastifyPluginAsync<RunsRoutesOptions> = async (
     },
   );
 
+  // POST /runs/:id/tasks/:taskId/retry
+  app.post<{ Params: { id: string; taskId: string } }>(
+    '/runs/:id/tasks/:taskId/retry',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id', 'taskId'],
+          properties: {
+            id: { type: 'string', minLength: 1 },
+            taskId: { type: 'string', minLength: 1 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const result = await runsManager.retryTask(request.params.id, request.params.taskId);
+        return reply.code(200).send({
+          message: `Retry initiated for task ${request.params.taskId}`,
+          runId: result.runId,
+          taskId: result.taskId,
+        });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    },
+  );
+
   // POST /runs/:id/merge
   app.post<{ Params: { id: string } }>(
     '/runs/:id/merge',
@@ -243,6 +339,7 @@ function handleRouteError(error: unknown, reply: { code: (c: number) => { send: 
     switch (error.code) {
       case 'REPO_NOT_FOUND':
       case 'RUN_NOT_FOUND':
+      case 'TASK_NOT_FOUND':
         return reply.code(404).send({ error: { code: error.code, message: error.message } });
       case 'RUN_ALREADY_ACTIVE':
       case 'RUN_STILL_ACTIVE':

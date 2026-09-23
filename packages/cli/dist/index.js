@@ -20,6 +20,9 @@ const TEMPLATE = {
     copyFiles: [],
     verify: [],
     agents: { default: { cli: 'claude' } },
+    mcpServers: {},
+    skills: {},
+    plugins: {},
 };
 async function main(args) {
     const command = args[0];

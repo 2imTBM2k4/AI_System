@@ -10,6 +10,8 @@ import {
   SquadOrchestrator,
   SquadStore,
   validatePlan,
+  ClarificationStage,
+  type ClarificationResult,
   type FileConflict,
   type LoadedSquadConfig,
   type MergeReport,
@@ -25,6 +27,7 @@ export class RunsManagerError extends Error {
   readonly code:
     | 'REPO_NOT_FOUND'
     | 'RUN_NOT_FOUND'
+    | 'TASK_NOT_FOUND'
     | 'RUN_ALREADY_ACTIVE'
     | 'RUN_NOT_ACTIVE'
     | 'TASK_NOT_CANCELLABLE'
@@ -88,6 +91,13 @@ export class RunsManager {
     this.startingRunsByRepoId.clear();
   }
 
+  /** Evaluates whether the goal needs clarification (Step 0) before PM planning. */
+  async clarifyGoal(repoId: string, goal: string): Promise<ClarificationResult> {
+    this.requireRepo(repoId);
+    const stage = new ClarificationStage();
+    return stage.evaluate(goal);
+  }
+
   /** Lists the newest runs for a repository directly from its SQLite store. */
   async listRuns(repoId: string, limit = 10): Promise<RunRecord[]> {
     const repo = this.requireRepo(repoId);
@@ -107,6 +117,22 @@ export class RunsManager {
     return this.withStore(repo.path, async (store, config) => {
       const orchestrator = new SquadOrchestrator({ config, store });
       return orchestrator.makePlan(repo.path, goal);
+    });
+  }
+
+  /** Handles chat message: answers questions directly or plans multi-agent tasks. */
+  async handleChat(
+    repoId: string,
+    message: string,
+    mode: 'auto' | 'ask' | 'plan' = 'auto',
+  ): Promise<
+    | { type: 'answer'; reply: string }
+    | { type: 'plan'; runId: string; plan: Plan; warnings: FileConflict[] }
+  > {
+    const repo = this.requireRepo(repoId);
+    return this.withStore(repo.path, async (store, config) => {
+      const orchestrator = new SquadOrchestrator({ config, store });
+      return orchestrator.chat(repo.path, message, mode);
     });
   }
 
@@ -285,6 +311,68 @@ export class RunsManager {
       throw new RunsManagerError('RUN_NOT_ACTIVE', `Run ${runId} is not currently active.`);
     }
     active.orchestrator.cancelTask(taskId);
+  }
+
+  /** Retries a failed or skipped task on a run. */
+  async retryTask(runId: string, taskId: string): Promise<{ runId: string; taskId: string }> {
+    const active = this.activeRunsById.get(runId);
+    if (active !== undefined) {
+      const task = active.store.getTask(runId, taskId);
+      if (task === undefined) {
+        throw new RunsManagerError('TASK_NOT_FOUND', `Task ${taskId} was not found in run ${runId}.`);
+      }
+      active.orchestrator.retryTask(runId, active.repoPath, taskId).catch(() => {});
+      return { runId, taskId };
+    }
+
+    // If not currently in memory, find the repository holding this run:
+    for (const repo of this.registry.list()) {
+      const config = await loadSquadConfig(resolve(repo.path, 'squad.config.json'));
+      const paths = resolveSquadPaths(config);
+      const store = await SquadStore.open(paths.dbFile);
+      const run = store.getRun(runId);
+
+      if (run === undefined) {
+        store.close();
+        continue;
+      }
+
+      const task = store.getTask(runId, taskId);
+      if (task === undefined) {
+        store.close();
+        throw new RunsManagerError('TASK_NOT_FOUND', `Task ${taskId} was not found in run ${runId}.`);
+      }
+
+      const orchestrator = new SquadOrchestrator({ config, store });
+      const context: ActiveRunContext = {
+        runId,
+        repoId: repo.id,
+        repoPath: repo.path,
+        orchestrator,
+        store,
+        config,
+        executionPromise: Promise.resolve([]),
+      };
+
+      this.activeRunsByRepoId.set(repo.id, context);
+      this.activeRunsById.set(runId, context);
+
+      const executionPromise = orchestrator
+        .retryTask(runId, repo.path, taskId)
+        .catch(() => ({} as TaskResult))
+        .finally(() => {
+          this.activeRunsByRepoId.delete(repo.id);
+          this.activeRunsById.delete(runId);
+          try {
+            store.close();
+          } catch {}
+        });
+
+      context.executionPromise = executionPromise as any;
+      return { runId, taskId };
+    }
+
+    throw new RunsManagerError('RUN_NOT_FOUND', `Run ${runId} was not found in any registered repository.`);
   }
 
   /** Executes mergeRun on a finished run, integrating passed task branches. */

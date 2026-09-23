@@ -52,6 +52,13 @@ export async function buildServer(options: SquadServerOptions = {}): Promise<Fas
     );
   }
 
+  app.get('/health', async () => ({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+    registeredRepos: registry.list().length,
+  }));
+
   app.get('/repos', async () => ({ repos: registry.list() }));
 
   app.post<{ Body: { path: string } }>(

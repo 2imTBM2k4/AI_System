@@ -1,6 +1,6 @@
 import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -63,6 +63,15 @@ export function killProcessTree(pid: number | undefined | null): void {
   }
 }
 
+/** Default deterministic verify commands mapped by specialist pipeline role. */
+export const ROLE_DEFAULT_VERIFY_COMMANDS: Record<string, string> = {
+  frontend: 'pnpm --filter @squad/web test',
+  backend: 'pnpm --filter @squad/server test',
+  database: 'pnpm --filter @squad/core test',
+  devops: 'pnpm build',
+  mobile: 'pnpm --filter @squad/mobile test',
+};
+
 interface ActiveTask {
   child?: ChildProcess;
   cancelled: boolean;
@@ -121,6 +130,14 @@ export class SquadOrchestrator extends EventEmitter {
 
   constructor(private readonly options: SquadOrchestratorOptions) {
     super();
+    if (typeof process.loadEnvFile === 'function') {
+      const envPath = resolve(options.config.configDirectory, '.env');
+      if (existsSync(envPath)) {
+        try {
+          process.loadEnvFile(envPath);
+        } catch {}
+      }
+    }
     this.lockManager = new TaskLockManager(
       resolve(options.config.configDirectory, '.squad', 'locks'),
     );
@@ -689,7 +706,10 @@ export class SquadOrchestrator extends EventEmitter {
               status = 'agent_failed';
               errorMessage = this.processFailureMessage(agentResult);
             } else {
-              const verifyCommand = task.verify || this.options.config.config.verify.join(' && ');
+              const roleKey = task.role?.toLowerCase() ?? '';
+              const roleVerify = ROLE_DEFAULT_VERIFY_COMMANDS[roleKey];
+              const fallbackVerify = this.options.config.config.verify.join(' && ');
+              const verifyCommand = task.verify || roleVerify || fallbackVerify;
               if (verifyCommand.length > 0) {
                 const verifyResult = await this.runProcess(
                   runId,
@@ -861,6 +881,9 @@ export class SquadOrchestrator extends EventEmitter {
     const { copyFiles } = resolveSquadPaths(this.options.config);
 
     for (const sourcePath of copyFiles) {
+      if (!existsSync(sourcePath)) {
+        continue;
+      }
       const relativePath = relative(configDirectory, sourcePath);
       if (
         relativePath.length === 0 ||

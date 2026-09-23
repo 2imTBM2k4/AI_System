@@ -189,4 +189,12 @@ describe('Squad Task Execution Harness (v2 Requirements)', () => {
     const { existsSync } = await import('node:fs');
     expect(existsSync(orphanDir)).toBe(false);
   });
+
+  it('Task 6: maps role-specific verify commands to the target package', async () => {
+    const { ROLE_DEFAULT_VERIFY_COMMANDS } = await import('../src/runner.js');
+    expect(ROLE_DEFAULT_VERIFY_COMMANDS.frontend).toBe('pnpm --filter @squad/web test');
+    expect(ROLE_DEFAULT_VERIFY_COMMANDS.backend).toBe('pnpm --filter @squad/server test');
+    expect(ROLE_DEFAULT_VERIFY_COMMANDS.database).toBe('pnpm --filter @squad/core test');
+    expect(ROLE_DEFAULT_VERIFY_COMMANDS.devops).toBe('pnpm build');
+  });
 });

@@ -127,13 +127,13 @@ pnpm -r build
 ```
 
 ### 3. Chạy Toàn Bộ Test Suite
-Dự án được bảo đảm chất lượng với **87/87 tests (100% pass)**:
+Dự án được bảo đảm chất lượng với **104/104 tests (100% pass)**:
 ```bash
 pnpm -r test
 ```
 *Chi tiết các gói kiểm thử:*
-- `@squad/core`: 43 tests
-- `@squad/server`: 18 tests
+- `@squad/core`: 57 tests (bao gồm harness v2, worktree cleanup, file lock & security hooks)
+- `@squad/server`: 21 tests
 - `@squad/cli`: 8 tests
 - `@squad/web`: 18 tests
 
@@ -170,9 +170,18 @@ File `squad.config.json` định nghĩa các thiết lập thực thi và danh s
   "logDir": ".squad/logs",
   "maxParallel": 3,
   "timeoutMinutes": 30,
-  "executionMode": "direct",
+  "maxToolCalls": 50,
+  "permissionMode": "restricted",
+  "requireAcceptanceTest": false,
+  "executionMode": "worktree",
   "maxReviewRounds": 2,
-  "verify": [],
+  "bootstrap": [],
+  "copyFiles": [
+    ".env"
+  ],
+  "verify": [
+    "pnpm test"
+  ],
   "agents": {
     "default": { "cli": "9router", "model": "ag/gemini-3.8-flash-high" },
     "pm": { "cli": "9router", "model": "ag/gemini-3.8-flash-high" },

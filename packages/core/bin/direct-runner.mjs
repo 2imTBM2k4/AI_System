@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, resolve as pathResolve } from 'node:path';
 import { homedir } from 'node:os';
+
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    if (existsSync('.env')) {
+      process.loadEnvFile('.env');
+    }
+  } catch {}
+}
 
 const { values } = parseArgs({
   options: {

@@ -9,6 +9,8 @@ import { TaskLockManager } from './lock.js';
 import { HookPipeline } from './hooks.js';
 /** Forcefully kills a process and all its descendants to avoid orphaned background tasks. */
 export declare function killProcessTree(pid: number | undefined | null): void;
+/** Default deterministic verify commands mapped by specialist pipeline role. */
+export declare const ROLE_DEFAULT_VERIFY_COMMANDS: Record<string, string>;
 export interface SquadOrchestratorOptions {
     config: LoadedSquadConfig;
     store: SquadStore;

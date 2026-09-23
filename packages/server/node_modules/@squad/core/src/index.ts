@@ -19,6 +19,7 @@ export {
 } from './config.js';
 export {
   abortMerge,
+  cleanupOrphanWorktrees,
   commitAll,
   createWorktree,
   deleteBranch,
@@ -32,6 +33,30 @@ export {
   type GitCommandResult,
   GitCommandError,
 } from './git.js';
+export {
+  TaskLockManager,
+  TaskLockError,
+  isPidAlive,
+  type LockMetadata,
+} from './lock.js';
+export {
+  DEFAULT_ROLE_POLICIES,
+  globToRegex,
+  matchesAnyPattern,
+  validateCommandAccess,
+  validateFileAccess,
+  type PermissionMode,
+  type RolePermissionPolicy,
+  type ValidationResult,
+} from './permissions.js';
+export {
+  HookPipeline,
+  type HookActionType,
+  type HookContext,
+  type HookResult,
+  type PreToolUseHook,
+  type PostToolUseHook,
+} from './hooks.js';
 export {
   buildConsultationPrompt,
   buildPlannerPrompt,

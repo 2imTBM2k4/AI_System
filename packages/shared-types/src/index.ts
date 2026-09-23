@@ -18,6 +18,7 @@ export interface TaskDto {
   dependsOn: string[];
   prompt: string;
   verify?: string;
+  acceptanceTests?: string[];
   branch: string;
 }
 
@@ -193,6 +194,12 @@ export type SquadEventType =
   | 'task:start'
   | 'task:log'
   | 'task:done'
+  | 'worktree:create'
+  | 'worktree:cleanup'
+  | 'lock:acquired'
+  | 'lock:released'
+  | 'hook:evaluated'
+  | 'verify:gate'
   | 'review:start'
   | 'review:log'
   | 'review:done'
@@ -206,6 +213,20 @@ export type SquadEventDto =
   | { type: 'task:start'; runId: string; taskId: string }
   | { type: 'task:log'; runId: string; taskId: string; chunk: string }
   | { type: 'task:done'; runId: string; result: TaskResultDto }
+  | { type: 'worktree:create'; runId: string; taskId: string; worktreePath: string }
+  | { type: 'worktree:cleanup'; runId: string; taskId: string; worktreePath: string }
+  | { type: 'lock:acquired'; runId: string; taskId: string; pid: number }
+  | { type: 'lock:released'; runId: string; taskId: string }
+  | {
+      type: 'hook:evaluated';
+      runId: string;
+      taskId: string;
+      actionType: string;
+      target: string;
+      decision: 'allow' | 'deny';
+      reason?: string;
+    }
+  | { type: 'verify:gate'; runId: string; taskId: string; status: 'passed' | 'failed'; error?: string }
   | { type: 'review:start'; runId: string; round: number }
   | { type: 'review:log'; runId: string; round: number; chunk: string }
   | { type: 'review:done'; runId: string; round: number; result: ReviewResultDto }
@@ -260,6 +281,9 @@ export interface SquadConfigDto {
   logDir?: string;
   maxParallel: number;
   timeoutMinutes: number;
+  maxToolCalls?: number;
+  requireAcceptanceTest?: boolean;
+  permissionMode?: 'restricted' | 'full';
   executionMode?: 'direct' | 'worktree';
   maxReviewRounds?: number;
   bootstrap?: string[];

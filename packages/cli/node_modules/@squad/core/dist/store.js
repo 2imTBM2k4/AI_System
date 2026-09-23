@@ -69,6 +69,13 @@ const taskIdForEvent = (event) => {
             return event.taskId;
         case 'task:done':
             return event.result.id;
+        case 'worktree:create':
+        case 'worktree:cleanup':
+        case 'lock:acquired':
+        case 'lock:released':
+        case 'hook:evaluated':
+        case 'verify:gate':
+            return event.taskId;
         case 'review:start':
         case 'review:log':
         case 'review:done':
@@ -207,6 +214,20 @@ export class SquadStore {
             return undefined;
         }
         return this.toTaskRecord(row);
+    }
+    /** Retrieves the sequential audit trail of all recorded events for a given run. */
+    getRunAuditTrail(runId) {
+        const rows = this.database
+            .prepare('SELECT * FROM events WHERE run_id = ? ORDER BY id ASC')
+            .all(runId);
+        return rows.map((row) => ({
+            id: Number(row.id),
+            runId: toStringValue(row.run_id),
+            taskId: toNullableString(row.task_id),
+            type: toStringValue(row.type),
+            payload: JSON.parse(toStringValue(row.payload)),
+            createdAt: toStringValue(row.created_at),
+        }));
     }
     /** Lists newest runs first for the CLI history view. */
     listRuns(limit) {

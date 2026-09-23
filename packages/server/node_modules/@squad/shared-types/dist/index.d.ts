@@ -7,6 +7,7 @@ export interface TaskDto {
     dependsOn: string[];
     prompt: string;
     verify?: string;
+    acceptanceTests?: string[];
     branch: string;
 }
 export interface PlanDto {
@@ -154,7 +155,7 @@ export interface ReviewResultDto {
     summary: string;
     fixTasks?: TaskDto[];
 }
-export type SquadEventType = 'plan:start' | 'plan:log' | 'plan:done' | 'run:start' | 'task:start' | 'task:log' | 'task:done' | 'review:start' | 'review:log' | 'review:done' | 'run:done';
+export type SquadEventType = 'plan:start' | 'plan:log' | 'plan:done' | 'run:start' | 'task:start' | 'task:log' | 'task:done' | 'worktree:create' | 'worktree:cleanup' | 'lock:acquired' | 'lock:released' | 'hook:evaluated' | 'verify:gate' | 'review:start' | 'review:log' | 'review:done' | 'run:done';
 export type SquadEventDto = {
     type: 'plan:start';
     goal: string;
@@ -183,6 +184,39 @@ export type SquadEventDto = {
     type: 'task:done';
     runId: string;
     result: TaskResultDto;
+} | {
+    type: 'worktree:create';
+    runId: string;
+    taskId: string;
+    worktreePath: string;
+} | {
+    type: 'worktree:cleanup';
+    runId: string;
+    taskId: string;
+    worktreePath: string;
+} | {
+    type: 'lock:acquired';
+    runId: string;
+    taskId: string;
+    pid: number;
+} | {
+    type: 'lock:released';
+    runId: string;
+    taskId: string;
+} | {
+    type: 'hook:evaluated';
+    runId: string;
+    taskId: string;
+    actionType: string;
+    target: string;
+    decision: 'allow' | 'deny';
+    reason?: string;
+} | {
+    type: 'verify:gate';
+    runId: string;
+    taskId: string;
+    status: 'passed' | 'failed';
+    error?: string;
 } | {
     type: 'review:start';
     runId: string;
@@ -246,6 +280,9 @@ export interface SquadConfigDto {
     logDir?: string;
     maxParallel: number;
     timeoutMinutes: number;
+    maxToolCalls?: number;
+    requireAcceptanceTest?: boolean;
+    permissionMode?: 'restricted' | 'full';
     executionMode?: 'direct' | 'worktree';
     maxReviewRounds?: number;
     bootstrap?: string[];

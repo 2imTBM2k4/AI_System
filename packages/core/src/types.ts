@@ -25,6 +25,7 @@ export interface Task {
   dependsOn: string[];
   prompt: string;
   verify?: string;
+  acceptanceTests?: string[];
   branch: string;
 }
 
@@ -61,6 +62,20 @@ export type SquadEvent =
   | { type: 'task:start'; runId: string; taskId: string }
   | { type: 'task:log'; runId: string; taskId: string; chunk: string }
   | { type: 'task:done'; runId: string; result: TaskResult }
+  | { type: 'worktree:create'; runId: string; taskId: string; worktreePath: string }
+  | { type: 'worktree:cleanup'; runId: string; taskId: string; worktreePath: string }
+  | { type: 'lock:acquired'; runId: string; taskId: string; pid: number }
+  | { type: 'lock:released'; runId: string; taskId: string }
+  | {
+      type: 'hook:evaluated';
+      runId: string;
+      taskId: string;
+      actionType: string;
+      target: string;
+      decision: 'allow' | 'deny';
+      reason?: string;
+    }
+  | { type: 'verify:gate'; runId: string; taskId: string; status: 'passed' | 'failed'; error?: string }
   | { type: 'review:start'; runId: string; round: number }
   | { type: 'review:log'; runId: string; round: number; chunk: string }
   | { type: 'review:done'; runId: string; round: number; result: ReviewResult }

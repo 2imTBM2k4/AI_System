@@ -8,6 +8,7 @@ export interface Task {
     dependsOn: string[];
     prompt: string;
     verify?: string;
+    acceptanceTests?: string[];
     branch: string;
 }
 export interface Plan {
@@ -58,6 +59,39 @@ export type SquadEvent = {
     type: 'task:done';
     runId: string;
     result: TaskResult;
+} | {
+    type: 'worktree:create';
+    runId: string;
+    taskId: string;
+    worktreePath: string;
+} | {
+    type: 'worktree:cleanup';
+    runId: string;
+    taskId: string;
+    worktreePath: string;
+} | {
+    type: 'lock:acquired';
+    runId: string;
+    taskId: string;
+    pid: number;
+} | {
+    type: 'lock:released';
+    runId: string;
+    taskId: string;
+} | {
+    type: 'hook:evaluated';
+    runId: string;
+    taskId: string;
+    actionType: string;
+    target: string;
+    decision: 'allow' | 'deny';
+    reason?: string;
+} | {
+    type: 'verify:gate';
+    runId: string;
+    taskId: string;
+    status: 'passed' | 'failed';
+    error?: string;
 } | {
     type: 'review:start';
     runId: string;

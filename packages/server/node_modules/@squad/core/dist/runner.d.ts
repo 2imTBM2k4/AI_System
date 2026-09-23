@@ -5,6 +5,10 @@ import { type FileConflict } from './planner.js';
 import { SquadStore } from './store.js';
 import type { Plan, TaskResult } from './types.js';
 import { ClarificationStage, TechLeadStage, DevOpsStage, type ClarificationResult, type TechLeadContract, type DevOpsReport } from './stages/index.js';
+import { TaskLockManager } from './lock.js';
+import { HookPipeline } from './hooks.js';
+/** Forcefully kills a process and all its descendants to avoid orphaned background tasks. */
+export declare function killProcessTree(pid: number | undefined | null): void;
 export interface SquadOrchestratorOptions {
     config: LoadedSquadConfig;
     store: SquadStore;
@@ -23,6 +27,8 @@ export declare class SquadOrchestrator extends EventEmitter {
     readonly clarificationStage: ClarificationStage;
     readonly techLeadStage: TechLeadStage;
     readonly devOpsStage: DevOpsStage;
+    readonly lockManager: TaskLockManager;
+    readonly hooks: HookPipeline;
     constructor(options: SquadOrchestratorOptions);
     /** Step 0: Evaluates whether the user's goal needs clarification before planning. */
     clarifyGoal(goal: string): Promise<ClarificationResult>;

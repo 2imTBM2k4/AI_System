@@ -149,10 +149,69 @@ export async function createWorktree(
   }
 }
 
-/** Removes a clean worktree. It intentionally does not force-delete uncommitted work. */
+/** Removes a clean worktree. Resilient with filesystem cleanup and prune. */
 export async function removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
-  await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
-  await runGit(repoPath, ['worktree', 'prune']);
+  try {
+    await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
+  } catch {
+    try {
+      const { rmSync, existsSync } = await import('node:fs');
+      if (existsSync(worktreePath)) {
+        rmSync(worktreePath, { recursive: true, force: true });
+      }
+    } catch {}
+  } finally {
+    try {
+      await runGit(repoPath, ['worktree', 'prune']);
+    } catch {}
+  }
+}
+
+/** Sweeps and removes orphan worktree directories under worktreeDir that are no longer active. */
+export async function cleanupOrphanWorktrees(repoPath: string, worktreeDir: string): Promise<void> {
+  try {
+    await runGit(repoPath, ['worktree', 'prune']);
+    const { stdout } = await runGit(repoPath, ['worktree', 'list', '--porcelain']);
+    const lines = stdout.split('\n');
+    const registeredPaths = new Set<string>();
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        const raw = line.slice('worktree '.length).trim();
+        registeredPaths.add(raw.toLowerCase());
+      }
+    }
+
+    const { existsSync, readdirSync, rmSync } = await import('node:fs');
+    const { resolve: pathResolve } = await import('node:path');
+    if (!existsSync(worktreeDir)) {
+      return;
+    }
+
+    const entries = readdirSync(worktreeDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const runDirPath = pathResolve(worktreeDir, entry.name);
+        const taskEntries = readdirSync(runDirPath, { withFileTypes: true });
+        for (const taskEntry of taskEntries) {
+          if (taskEntry.isDirectory()) {
+            const fullPath = pathResolve(runDirPath, taskEntry.name);
+            if (!registeredPaths.has(fullPath.toLowerCase())) {
+              try {
+                rmSync(fullPath, { recursive: true, force: true });
+              } catch {}
+            }
+          }
+        }
+        // If run directory is now empty, remove it too
+        try {
+          if (readdirSync(runDirPath).length === 0) {
+            rmSync(runDirPath, { recursive: true, force: true });
+          }
+        } catch {}
+      }
+    }
+    await runGit(repoPath, ['worktree', 'prune']);
+  } catch {}
 }
 
 /** Deletes a branch only when Git considers the deletion safe. */

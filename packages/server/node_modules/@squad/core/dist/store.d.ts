@@ -61,6 +61,8 @@ export declare class SquadStore {
     getRunPlan(id: string): Plan | undefined;
     listTasks(runId: string): TaskRecord[];
     getTask(runId: string, taskId: string): TaskRecord | undefined;
+    /** Retrieves the sequential audit trail of all recorded events for a given run. */
+    getRunAuditTrail(runId: string): StoredEvent[];
     /** Lists newest runs first for the CLI history view. */
     listRuns(limit: number): RunRecord[];
     listRunningRuns(): RunRecord[];

@@ -1,15 +1,44 @@
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { renderAgentCommand, renderAgentPrompt, loadSquadConfig, resolveAgent, resolveSquadPaths, } from './config.js';
-import { commitAll, createWorktree, listChangedFiles, removeWorktree, rollbackWorkingTree, runGit } from './git.js';
+import { cleanupOrphanWorktrees, commitAll, createWorktree, listChangedFiles, removeWorktree, rollbackWorkingTree, runGit, } from './git.js';
 import { mergeRun } from './merge.js';
 import { buildConsultationPrompt, buildPlannerPrompt, buildSmartChatPrompt, cleanChatReply, extractJson, fileConflicts, parsePlanOutput, repoOverview, tryParsePlanOutput, validatePlan, } from './planner.js';
 import { SquadStore } from './store.js';
 import { ClarificationStage, TechLeadStage, DevOpsStage } from './stages/index.js';
+import { TaskLockManager } from './lock.js';
+import { HookPipeline } from './hooks.js';
+/** Forcefully kills a process and all its descendants to avoid orphaned background tasks. */
+export function killProcessTree(pid) {
+    if (!pid || pid <= 0)
+        return;
+    if (process.platform === 'win32') {
+        try {
+            execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
+        }
+        catch {
+            try {
+                process.kill(pid, 'SIGKILL');
+            }
+            catch { }
+        }
+    }
+    else {
+        try {
+            process.kill(-pid, 'SIGKILL');
+        }
+        catch {
+            try {
+                process.kill(pid, 'SIGKILL');
+            }
+            catch { }
+        }
+    }
+}
 export class RunnerError extends Error {
     code;
     constructor(code, message) {
@@ -43,9 +72,13 @@ export class SquadOrchestrator extends EventEmitter {
     clarificationStage = new ClarificationStage();
     techLeadStage = new TechLeadStage();
     devOpsStage = new DevOpsStage();
+    lockManager;
+    hooks;
     constructor(options) {
         super();
         this.options = options;
+        this.lockManager = new TaskLockManager(resolve(options.config.configDirectory, '.squad', 'locks'));
+        this.hooks = new HookPipeline();
     }
     /** Step 0: Evaluates whether the user's goal needs clarification before planning. */
     async clarifyGoal(goal) {
@@ -167,6 +200,12 @@ export class SquadOrchestrator extends EventEmitter {
         const running = new Map();
         this.currentRunId = runId;
         try {
+            try {
+                await cleanupOrphanWorktrees(repoPath, paths.worktreeDir);
+            }
+            catch {
+                // Ignore initial cleanup error
+            }
             await mkdir(resolve(paths.logDir, runId), { recursive: true });
             store.startPlannedRun(runId, plan, logPaths, { type: 'run:start', runId, plan }, process.pid);
             this.emit('run:start', { type: 'run:start', runId, plan });
@@ -265,7 +304,12 @@ export class SquadOrchestrator extends EventEmitter {
             return;
         }
         activeTask.cancelled = true;
-        activeTask.child?.kill();
+        if (activeTask.child?.pid) {
+            killProcessTree(activeTask.child.pid);
+        }
+        else {
+            activeTask.child?.kill();
+        }
     }
     /** Re-executes a failed or skipped task. */
     async retryTask(runId, repoPath, taskId) {
@@ -320,151 +364,332 @@ export class SquadOrchestrator extends EventEmitter {
         let changedFiles;
         let agentName;
         let setupComplete = false;
-        this.activeTasks.set(task.id, activeTask);
-        this.options.store.recordTaskStarted(runId, task.id, startedAt, {
-            type: 'task:start',
+        const lockAcquired = await this.lockManager.acquire(task.id);
+        if (!lockAcquired) {
+            const lockErrorMsg = `Task ${task.id} could not be acquired because another worker is currently executing it.`;
+            const lockLog = `\n[squad:lock] ${lockErrorMsg}\n`;
+            logChunks.push(lockLog);
+            try {
+                appendFileSync(logPath, lockLog, 'utf8');
+            }
+            catch { }
+            return this.createTerminalResult(task, 'error', lockErrorMsg);
+        }
+        const lockAcquiredEvt = {
+            type: 'lock:acquired',
             runId,
             taskId: task.id,
-        });
-        this.emit('task:start', { type: 'task:start', runId, taskId: task.id });
+            pid: process.pid,
+        };
+        this.options.store.appendEvent(lockAcquiredEvt);
+        this.emit('lock:acquired', lockAcquiredEvt);
         try {
-            if (!isDirect) {
-                await mkdir(dirname(targetDir), { recursive: true });
-                try {
-                    await removeWorktree(repoPath, targetDir);
+            this.activeTasks.set(task.id, activeTask);
+            this.options.store.recordTaskStarted(runId, task.id, startedAt, {
+                type: 'task:start',
+                runId,
+                taskId: task.id,
+            });
+            this.emit('task:start', { type: 'task:start', runId, taskId: task.id });
+            try {
+                if (!isDirect) {
+                    await mkdir(dirname(targetDir), { recursive: true });
+                    try {
+                        await removeWorktree(repoPath, targetDir);
+                    }
+                    catch {
+                        // Ignore if worktree was not attached
+                    }
+                    await rm(targetDir, { recursive: true, force: true });
+                    await createWorktree(repoPath, targetDir, task.branch, this.options.config.config.baseBranch);
+                    const wtCreateEvt = {
+                        type: 'worktree:create',
+                        runId,
+                        taskId: task.id,
+                        worktreePath: targetDir,
+                    };
+                    this.options.store.appendEvent(wtCreateEvt);
+                    this.emit('worktree:create', wtCreateEvt);
+                    await this.copyConfiguredFiles(targetDir);
                 }
-                catch {
-                    // Ignore if worktree was not attached
+                await this.runBootstrap(runId, task.id, targetDir, logPath, logChunks, activeTask);
+                setupComplete = true;
+                if (activeTask.cancelled) {
+                    status = 'cancelled';
                 }
-                await rm(targetDir, { recursive: true, force: true });
-                await createWorktree(repoPath, targetDir, task.branch, this.options.config.config.baseBranch);
-                await this.copyConfiguredFiles(targetDir);
-            }
-            await this.runBootstrap(runId, task.id, targetDir, logPath, logChunks, activeTask);
-            setupComplete = true;
-            if (activeTask.cancelled) {
-                status = 'cancelled';
-            }
-            else {
-                const agent = await resolveAgent(this.options.config, task.role);
-                agentName = agent.spec.cli ?? agent.spec.command?.[0];
-                const targetFileList = task.files.length > 0
-                    ? `\n\nTarget Files for this task:\n${task.files.map((f) => `- ${f}`).join('\n')}\n`
-                    : '';
-                const strictGuidelines = `
+                else {
+                    const agent = await resolveAgent(this.options.config, task.role);
+                    agentName = agent.spec.cli ?? agent.spec.command?.[0];
+                    const targetFileList = task.files.length > 0
+                        ? `\n\nTarget Files for this task:\n${task.files.map((f) => `- ${f}`).join('\n')}\n`
+                        : '';
+                    const strictGuidelines = `
 [TASK CONSTRAINTS & CODING GUIDELINES]
 1. TARGET FILES: Focus strictly on the assigned target files. Do NOT modify, delete, or rewrite root configuration files (package.json, squad.config.json, tsconfig.json, vite.config.ts) unless specifically instructed.
 2. TYPESCRIPT COMPILATION: Follow strict TypeScript rules. Every import must be used (no TS6133 unused variables/imports). Do NOT import React unless explicitly needed.
 3. DEPENDENCIES: Never import packages that do not exist in package.json. If utility functions (e.g. cn class merging) are needed, check existing files (e.g. apps/web/src/lib/utils.ts) or implement lightweight pure TypeScript helpers without adding uninstalled third-party packages.
 4. SYSTEM CONTINUITY: Keep the existing application components, UI shell, and routing intact. Integrate new visual styling or primitives harmoniously into the current layout without blanking out working features.
 `;
-                const taskPromptWithScope = `${task.prompt}${targetFileList}${strictGuidelines}`;
-                const prompt = renderAgentPrompt(agent, taskPromptWithScope);
-                const command = renderAgentCommand(agent, prompt);
-                const agentResult = await this.runProcess(runId, task.id, logPath, logChunks, activeTask, command[0], command.slice(1), targetDir, agent.spec.env, false, true);
-                if (activeTask.cancelled) {
-                    status = 'cancelled';
-                }
-                else if (activeTask.logWriteError !== undefined) {
-                    status = 'error';
-                    errorMessage = activeTask.logWriteError.message;
-                }
-                else if (agentResult.timedOut) {
-                    status = 'agent_failed';
-                    errorMessage = `Agent timed out after ${this.options.config.config.timeoutMinutes} minutes.`;
-                }
-                else if (agentResult.exitCode !== 0) {
-                    status = 'agent_failed';
-                    errorMessage = this.processFailureMessage(agentResult);
-                }
-                else {
-                    const verifyCommand = task.verify || this.options.config.config.verify.join(' && ');
-                    if (verifyCommand.length > 0) {
-                        const verifyResult = await this.runProcess(runId, task.id, logPath, logChunks, activeTask, verifyCommand, [], targetDir, undefined, true);
+                    const taskPromptWithScope = `${task.prompt}${targetFileList}${strictGuidelines}`;
+                    const prompt = renderAgentPrompt(agent, taskPromptWithScope);
+                    const command = renderAgentCommand(agent, prompt);
+                    // Evaluate PreToolUse security hooks on target files
+                    const mode = this.options.config.config.permissionMode ?? 'restricted';
+                    let permissionDenied = false;
+                    for (const file of task.files) {
+                        const fileHook = await this.hooks.executePreHooks({
+                            runId,
+                            taskId: task.id,
+                            role: task.role,
+                            actionType: 'file_write',
+                            target: file,
+                            repoPath,
+                            mode,
+                            acceptanceTests: task.acceptanceTests,
+                        });
+                        const fileEvt = {
+                            type: 'hook:evaluated',
+                            runId,
+                            taskId: task.id,
+                            actionType: 'file_write',
+                            target: file,
+                            decision: fileHook.decision,
+                            reason: fileHook.reason,
+                        };
+                        this.options.store.appendEvent(fileEvt);
+                        this.emit('hook:evaluated', fileEvt);
+                        if (fileHook.decision === 'deny') {
+                            status = 'agent_failed';
+                            errorMessage = `Permission denied: ${fileHook.reason}`;
+                            const denyMsg = `\n[squad:security] File access denied for '${file}': ${fileHook.reason}\n`;
+                            logChunks.push(denyMsg);
+                            try {
+                                appendFileSync(logPath, denyMsg, 'utf8');
+                            }
+                            catch { }
+                            permissionDenied = true;
+                            break;
+                        }
+                    }
+                    // Evaluate PreToolUse security hook on agent CLI command
+                    if (!permissionDenied && !activeTask.cancelled) {
+                        const cmdHook = await this.hooks.executePreHooks({
+                            runId,
+                            taskId: task.id,
+                            role: task.role,
+                            actionType: 'command_exec',
+                            target: command[0],
+                            repoPath,
+                            mode,
+                        });
+                        const cmdEvt = {
+                            type: 'hook:evaluated',
+                            runId,
+                            taskId: task.id,
+                            actionType: 'command_exec',
+                            target: command[0],
+                            decision: cmdHook.decision,
+                            reason: cmdHook.reason,
+                        };
+                        this.options.store.appendEvent(cmdEvt);
+                        this.emit('hook:evaluated', cmdEvt);
+                        if (cmdHook.decision === 'deny') {
+                            status = 'agent_failed';
+                            errorMessage = `Command not permitted: ${cmdHook.reason}`;
+                            const denyMsg = `\n[squad:security] Command '${command[0]}' denied for role '${task.role}': ${cmdHook.reason}\n`;
+                            logChunks.push(denyMsg);
+                            try {
+                                appendFileSync(logPath, denyMsg, 'utf8');
+                            }
+                            catch { }
+                            permissionDenied = true;
+                        }
+                    }
+                    if (!permissionDenied && !activeTask.cancelled) {
+                        const agentResult = await this.runProcess(runId, task.id, logPath, logChunks, activeTask, command[0], command.slice(1), targetDir, agent.spec.env, false, true);
                         if (activeTask.cancelled) {
                             status = 'cancelled';
                         }
-                        else if (verifyResult.timedOut || verifyResult.exitCode !== 0) {
-                            status = 'verify_failed';
-                            errorMessage = verifyResult.timedOut
-                                ? `Verify command timed out after ${this.options.config.config.timeoutMinutes} minutes.`
-                                : this.processFailureMessage(verifyResult);
+                        else if (activeTask.logWriteError !== undefined) {
+                            status = 'error';
+                            errorMessage = activeTask.logWriteError.message;
+                        }
+                        else if (agentResult.timedOut) {
+                            status = 'agent_failed';
+                            errorMessage = `Agent timed out after ${this.options.config.config.timeoutMinutes} minutes.`;
+                        }
+                        else if (agentResult.exitCode !== 0) {
+                            status = 'agent_failed';
+                            errorMessage = this.processFailureMessage(agentResult);
                         }
                         else {
-                            status = 'passed';
+                            const verifyCommand = task.verify || this.options.config.config.verify.join(' && ');
+                            if (verifyCommand.length > 0) {
+                                const verifyResult = await this.runProcess(runId, task.id, logPath, logChunks, activeTask, verifyCommand, [], targetDir, undefined, true);
+                                if (activeTask.cancelled) {
+                                    status = 'cancelled';
+                                }
+                                else if (verifyResult.timedOut || verifyResult.exitCode !== 0) {
+                                    status = 'verify_failed';
+                                    errorMessage = verifyResult.timedOut
+                                        ? `Verify command timed out after ${this.options.config.config.timeoutMinutes} minutes.`
+                                        : this.processFailureMessage(verifyResult);
+                                    const verifyEvt = {
+                                        type: 'verify:gate',
+                                        runId,
+                                        taskId: task.id,
+                                        status: 'failed',
+                                        error: errorMessage,
+                                    };
+                                    this.options.store.appendEvent(verifyEvt);
+                                    this.emit('verify:gate', verifyEvt);
+                                }
+                                else {
+                                    status = 'passed';
+                                    const verifyEvt = {
+                                        type: 'verify:gate',
+                                        runId,
+                                        taskId: task.id,
+                                        status: 'passed',
+                                    };
+                                    this.options.store.appendEvent(verifyEvt);
+                                    this.emit('verify:gate', verifyEvt);
+                                }
+                            }
+                            else {
+                                status = 'passed';
+                            }
                         }
                     }
-                    else {
-                        status = 'passed';
+                }
+                if (status === 'passed') {
+                    changedFiles = await listChangedFiles(targetDir);
+                    await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
+                    if (!isDirect) {
+                        try {
+                            await removeWorktree(repoPath, targetDir);
+                            const wtCleanEvt = {
+                                type: 'worktree:cleanup',
+                                runId,
+                                taskId: task.id,
+                                worktreePath: targetDir,
+                            };
+                            this.options.store.appendEvent(wtCleanEvt);
+                            this.emit('worktree:cleanup', wtCleanEvt);
+                        }
+                        catch { }
+                    }
+                }
+                else if (isDirect) {
+                    try {
+                        await rollbackWorkingTree(targetDir);
+                        const rollbackMsg = `\n[squad:direct] Task ${task.id} did not pass verification (${status}). Rolled back working tree to clean state.\n`;
+                        logChunks.push(rollbackMsg);
+                        appendFileSync(logPath, rollbackMsg, 'utf8');
+                        const event = {
+                            type: 'task:log',
+                            runId,
+                            taskId: task.id,
+                            chunk: rollbackMsg,
+                        };
+                        this.options.store.appendEvent(event);
+                        this.emit('task:log', event);
+                    }
+                    catch {
+                        // ignore rollback error
+                    }
+                }
+                else {
+                    try {
+                        await removeWorktree(repoPath, targetDir);
+                        const wtCleanEvt = {
+                            type: 'worktree:cleanup',
+                            runId,
+                            taskId: task.id,
+                            worktreePath: targetDir,
+                        };
+                        this.options.store.appendEvent(wtCleanEvt);
+                        this.emit('worktree:cleanup', wtCleanEvt);
+                    }
+                    catch { }
+                }
+            }
+            catch (error) {
+                status = activeTask.cancelled ? 'cancelled' : setupComplete ? 'error' : 'bootstrap_failed';
+                errorMessage = this.errorMessage(error);
+                if (isDirect) {
+                    try {
+                        await rollbackWorkingTree(targetDir);
+                    }
+                    catch {
+                        // ignore
+                    }
+                }
+                else {
+                    try {
+                        await removeWorktree(repoPath, targetDir);
+                        const wtCleanEvt = {
+                            type: 'worktree:cleanup',
+                            runId,
+                            taskId: task.id,
+                            worktreePath: targetDir,
+                        };
+                        this.options.store.appendEvent(wtCleanEvt);
+                        this.emit('worktree:cleanup', wtCleanEvt);
+                    }
+                    catch { }
+                }
+            }
+            if (status === 'cancelled') {
+                if (isDirect) {
+                    try {
+                        await rollbackWorkingTree(targetDir);
+                    }
+                    catch {
+                        // ignore
+                    }
+                }
+                else {
+                    try {
+                        changedFiles = await listChangedFiles(targetDir);
+                        await commitAll(targetDir, `squad(${task.id}): WIP (cancelled by user)`);
+                        await removeWorktree(repoPath, targetDir);
+                        const wtCleanEvt = {
+                            type: 'worktree:cleanup',
+                            runId,
+                            taskId: task.id,
+                            worktreePath: targetDir,
+                        };
+                        this.options.store.appendEvent(wtCleanEvt);
+                        this.emit('worktree:cleanup', wtCleanEvt);
+                    }
+                    catch (error) {
+                        errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
                     }
                 }
             }
-            if (status === 'passed') {
-                changedFiles = await listChangedFiles(targetDir);
-                await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
-            }
-            else if (isDirect) {
-                try {
-                    await rollbackWorkingTree(targetDir);
-                    const rollbackMsg = `\n[squad:direct] Task ${task.id} did not pass verification (${status}). Rolled back working tree to clean state.\n`;
-                    logChunks.push(rollbackMsg);
-                    appendFileSync(logPath, rollbackMsg, 'utf8');
-                    const event = {
-                        type: 'task:log',
-                        runId,
-                        taskId: task.id,
-                        chunk: rollbackMsg,
-                    };
-                    this.options.store.appendEvent(event);
-                    this.emit('task:log', event);
-                }
-                catch {
-                    // ignore rollback error
-                }
-            }
+            const result = {
+                ...task,
+                status,
+                log: logChunks.join(''),
+                startedAt,
+                endedAt: new Date().toISOString(),
+                ...(changedFiles === undefined ? {} : { changedFiles }),
+                ...(agentName === undefined ? {} : { agent: agentName }),
+                ...(errorMessage === undefined ? {} : { error: errorMessage }),
+            };
+            return this.finalizeTask(runId, result, activeTask);
         }
-        catch (error) {
-            status = activeTask.cancelled ? 'cancelled' : setupComplete ? 'error' : 'bootstrap_failed';
-            errorMessage = this.errorMessage(error);
-            if (isDirect) {
-                try {
-                    await rollbackWorkingTree(targetDir);
-                }
-                catch {
-                    // ignore
-                }
-            }
+        finally {
+            await this.lockManager.release(task.id);
+            const lockReleasedEvt = {
+                type: 'lock:released',
+                runId,
+                taskId: task.id,
+            };
+            this.options.store.appendEvent(lockReleasedEvt);
+            this.emit('lock:released', lockReleasedEvt);
         }
-        if (status === 'cancelled') {
-            if (isDirect) {
-                try {
-                    await rollbackWorkingTree(targetDir);
-                }
-                catch {
-                    // ignore
-                }
-            }
-            else {
-                try {
-                    changedFiles = await listChangedFiles(targetDir);
-                    await commitAll(targetDir, `squad(${task.id}): WIP (cancelled by user)`);
-                }
-                catch (error) {
-                    errorMessage = `${errorMessage === undefined ? '' : `${errorMessage} `}Could not commit cancelled WIP: ${this.errorMessage(error)}`;
-                }
-            }
-        }
-        const result = {
-            ...task,
-            status,
-            log: logChunks.join(''),
-            startedAt,
-            endedAt: new Date().toISOString(),
-            ...(changedFiles === undefined ? {} : { changedFiles }),
-            ...(agentName === undefined ? {} : { agent: agentName }),
-            ...(errorMessage === undefined ? {} : { error: errorMessage }),
-        };
-        return this.finalizeTask(runId, result, activeTask);
     }
     async copyConfiguredFiles(worktreePath) {
         const { configDirectory } = this.options.config;
@@ -550,14 +775,24 @@ export class SquadOrchestrator extends EventEmitter {
                     if (activeTask !== undefined) {
                         activeTask.logWriteError = error instanceof Error ? error : new Error(String(error));
                     }
-                    child.kill();
+                    if (child.pid) {
+                        killProcessTree(child.pid);
+                    }
+                    else {
+                        child.kill();
+                    }
                 }
             }
             let settled = false;
             let timedOut = false;
             const timeout = setTimeout(() => {
                 timedOut = true;
-                child.kill();
+                if (child.pid) {
+                    killProcessTree(child.pid);
+                }
+                else {
+                    child.kill();
+                }
             }, this.options.config.config.timeoutMinutes * 60_000);
             const reportChunk = (chunk) => {
                 try {
@@ -567,7 +802,12 @@ export class SquadOrchestrator extends EventEmitter {
                     if (activeTask !== undefined) {
                         activeTask.logWriteError = error instanceof Error ? error : new Error(String(error));
                     }
-                    child.kill();
+                    if (child.pid) {
+                        killProcessTree(child.pid);
+                    }
+                    else {
+                        child.kill();
+                    }
                 }
             };
             child.stdout?.on('data', reportChunk);

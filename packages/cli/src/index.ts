@@ -40,6 +40,9 @@ const TEMPLATE: SquadConfig = {
   copyFiles: [],
   verify: [],
   agents: { default: { cli: 'claude' } },
+  mcpServers: {},
+  skills: {},
+  plugins: {},
 };
 
 interface Runtime {

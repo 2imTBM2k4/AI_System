@@ -1,11 +1,11 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { AiProviderHubModal } from '../src/components/providers/AiProviderHubModal';
+import { ProvidersView } from '../src/components/views/ProvidersView';
 import * as apiClient from '../src/api/client';
-import type { SquadConfigDto, ProviderConfigDto } from '@squad/shared-types';
+import type { ProviderConfigDto } from '@squad/shared-types';
 
-describe('AiProviderHubModal', () => {
+describe('ProvidersView', () => {
   const dummyProviders: ProviderConfigDto[] = [
     {
       id: '9router',
@@ -13,7 +13,7 @@ describe('AiProviderHubModal', () => {
       enabled: true,
       baseUrl: 'http://127.0.0.1:20128',
       apiKey: '',
-      customModels: ['claude-3-7-sonnet'],
+      customModels: ['ag/gemini-3.8-flash'],
     },
     {
       id: 'openai',
@@ -25,34 +25,13 @@ describe('AiProviderHubModal', () => {
     },
   ];
 
-  const dummyConfig: SquadConfigDto = {
-    configVersion: 1,
-    baseBranch: 'main',
-    integrationBranch: 'squad/integration',
-    maxParallel: 3,
-    timeoutMinutes: 30,
-    agents: {
-      planner: { cli: 'claude', model: 'claude-3-7-sonnet' },
-      backend: { cli: 'claude', model: 'claude-3-7-sonnet' },
-      frontend: { cli: 'codex', model: 'gpt-4o' },
-      tester: { cli: 'gemini', model: 'gemini-2.5-pro' },
-      default: { cli: 'claude', model: 'claude-3-7-sonnet' },
-    },
-  };
-
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(apiClient, 'getProviders').mockResolvedValue({
       providers: dummyProviders,
     });
-    vi.spyOn(apiClient, 'getRepoConfig').mockResolvedValue({
-      config: dummyConfig,
-    });
     vi.spyOn(apiClient, 'saveProviders').mockResolvedValue({
       providers: dummyProviders,
-    });
-    vi.spyOn(apiClient, 'updateRepoConfig').mockResolvedValue({
-      config: dummyConfig,
     });
   });
 
@@ -61,69 +40,64 @@ describe('AiProviderHubModal', () => {
   });
 
   it('renders provider list with 9Router enabled by default', async () => {
-    render(
-      <AiProviderHubModal
-        selectedRepoId="repo-1"
-        onClose={vi.fn()}
-      />
-    );
+    render(<ProvidersView />);
 
     await waitFor(() => {
       expect(screen.getByText(/9Router Gateway/)).toBeDefined();
     });
 
-    expect(screen.getByText(/AI Providers & Model Hub/)).toBeDefined();
-    expect(screen.getByText(/1\. Nhà Cung Cấp & 9Router/)).toBeDefined();
-    expect(screen.getByText(/2\. Phân Bổ Model Theo Vai Trò/)).toBeDefined();
+    expect(screen.getByText(/Thiết Lập Nhà Cung Cấp Model/)).toBeDefined();
+    expect(screen.getByText(/Lưu Cấu Hình/)).toBeDefined();
   });
 
-  it('switches to role allocation tab and displays role model mapping', async () => {
-    render(
-      <AiProviderHubModal
-        selectedRepoId="repo-1"
-        onClose={vi.fn()}
-      />
-    );
-
-    // Chờ loading ban đầu xong
-    await waitFor(() => {
-      expect(screen.getByText(/9Router Gateway/)).toBeDefined();
-    });
-
-    // Chuyển sang Tab 2
-    fireEvent.click(screen.getByText(/2\. Phân Bổ Model Theo Vai Trò/));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Agent Phân Rã Kế Hoạch/)).toBeDefined();
-    });
-
-    expect(screen.getByText(/Agent Lập Trình Backend \/ API/)).toBeDefined();
-    expect(screen.getByText(/Agent Giao Diện & Client/)).toBeDefined();
-    expect(screen.getByText(/Agent Viết Test & Kiểm Thử/)).toBeDefined();
-  });
-
-  it('tests provider connection and displays online latency badge', async () => {
+  it('tests provider connection and displays latency result', async () => {
     vi.spyOn(apiClient, 'testProvider').mockResolvedValue({
       success: true,
       latencyMs: 15,
-      models: ['claude-3-7-sonnet', 'deepseek-r1'],
+      models: ['ag/gemini-3.8-flash', 'cx/gpt-5.5'],
     });
 
-    render(
-      <AiProviderHubModal
-        selectedRepoId="repo-1"
-        onClose={vi.fn()}
-      />
-    );
+    render(<ProvidersView />);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Test & Lấy Models/)[0]).toBeDefined();
+      expect(screen.getAllByText(/Kiểm Tra Kết Nối/)[0]).toBeDefined();
     });
 
-    fireEvent.click(screen.getAllByText(/Test & Lấy Models/)[0]);
+    fireEvent.click(screen.getAllByText(/Kiểm Tra Kết Nối/)[0]);
 
     await waitFor(() => {
-      expect(screen.getByText(/Online \(15ms • 2 models\)/)).toBeDefined();
+      expect(screen.getByText(/15ms/)).toBeDefined();
+    });
+  });
+
+  it('toggles adding custom provider form', async () => {
+    render(<ProvidersView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Thêm Custom Provider/)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText(/Thêm Custom Provider/));
+
+    expect(screen.getByText(/Thêm Nhà Cung Cấp Mới/)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Ví dụ: Ollama, Groq, OpenRouter/)).toBeDefined();
+  });
+
+  it('triggers save providers on save button click', async () => {
+    const saveSpy = vi.spyOn(apiClient, 'saveProviders').mockResolvedValue({
+      providers: dummyProviders,
+    });
+
+    render(<ProvidersView />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Lưu Cấu Hình/)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText(/Lưu Cấu Hình/));
+
+    await waitFor(() => {
+      expect(saveSpy).toHaveBeenCalled();
     });
   });
 });

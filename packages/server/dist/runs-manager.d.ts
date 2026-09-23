@@ -1,4 +1,4 @@
-import { type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
+import { type ClarificationResult, type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
 import { RepoRegistry } from './registry.js';
 export declare class RunsManagerError extends Error {
     readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
@@ -25,6 +25,8 @@ export declare class RunsManager {
     constructor(registry: RepoRegistry);
     /** Gracefully cleans up all open stores and active runs when the server stops. */
     close(): Promise<void>;
+    /** Evaluates whether the goal needs clarification (Step 0) before PM planning. */
+    clarifyGoal(repoId: string, goal: string): Promise<ClarificationResult>;
     /** Lists the newest runs for a repository directly from its SQLite store. */
     listRuns(repoId: string, limit?: number): Promise<RunRecord[]>;
     /** Invokes the planner agent on a repository and creates a planned run row. */

@@ -25,6 +25,7 @@ import {
 } from './planner.js';
 import { SquadStore } from './store.js';
 import type { Plan, ReviewResult, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
+import { ClarificationStage, TechLeadStage, DevOpsStage, type ClarificationResult, type TechLeadContract, type DevOpsReport } from './stages/index.js';
 
 interface ActiveTask {
   child?: ChildProcess;
@@ -76,8 +77,27 @@ export class SquadOrchestrator extends EventEmitter {
   private readonly activeTasks = new Map<string, ActiveTask>();
   private currentRunId?: string;
 
+  readonly clarificationStage = new ClarificationStage();
+  readonly techLeadStage = new TechLeadStage();
+  readonly devOpsStage = new DevOpsStage();
+
   constructor(private readonly options: SquadOrchestratorOptions) {
     super();
+  }
+
+  /** Step 0: Evaluates whether the user's goal needs clarification before planning. */
+  async clarifyGoal(goal: string): Promise<ClarificationResult> {
+    return this.clarificationStage.evaluate(goal);
+  }
+
+  /** Tech Lead: Produces architecture and API contracts. */
+  async produceArchitectureContract(goal: string, plan: Plan): Promise<TechLeadContract> {
+    return this.techLeadStage.generateContract(goal, plan);
+  }
+
+  /** DevOps: Performs build verification and deployment handoff report. */
+  async verifyDevOps(repoPath: string): Promise<DevOpsReport> {
+    return this.devOpsStage.verifyAndHandoff(repoPath);
   }
 
   async makePlan(
@@ -177,10 +197,14 @@ export class SquadOrchestrator extends EventEmitter {
         }
       }
 
-      while (results.size < plan.tasks.length) {
+      // Tech Lead Stage: generate architecture & API contract and enrich specialist dev tasks
+      const techLeadContract = await this.techLeadStage.generateContract(plan.goal, plan);
+      const executionTasks = this.techLeadStage.enrichTasksWithContract(plan.tasks, techLeadContract);
+
+      while (results.size < executionTasks.length) {
         let progressed = false;
 
-        for (const task of plan.tasks) {
+        for (const task of executionTasks) {
           if (results.has(task.id) || running.has(task.id)) {
             continue;
           }
@@ -222,7 +246,7 @@ export class SquadOrchestrator extends EventEmitter {
           progressed = true;
         }
 
-        if (results.size === plan.tasks.length) {
+        if (results.size === executionTasks.length) {
           break;
         }
 
@@ -232,7 +256,7 @@ export class SquadOrchestrator extends EventEmitter {
         }
 
         if (!progressed) {
-          for (const task of plan.tasks) {
+          for (const task of executionTasks) {
             if (results.has(task.id)) {
               continue;
             }
@@ -252,7 +276,14 @@ export class SquadOrchestrator extends EventEmitter {
         await this.runQAReviewLoop(runId, repoPath, plan.goal, results, logPaths, paths.worktreeDir);
       }
 
-      const orderedResults = plan.tasks.map((task) => results.get(task.id)).filter((r): r is TaskResult => r !== undefined);
+      // DevOps Stage: Packaging & deployment verification before client handoff
+      try {
+        await this.devOpsStage.verifyAndHandoff(repoPath);
+      } catch {
+        // Non-blocking DevOps verification
+      }
+
+      const orderedResults = executionTasks.map((task) => results.get(task.id)).filter((r): r is TaskResult => r !== undefined);
       for (const [id, res] of results.entries()) {
         if (!orderedResults.some((r) => r.id === id)) {
           orderedResults.push(res);

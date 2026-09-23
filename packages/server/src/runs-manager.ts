@@ -10,6 +10,8 @@ import {
   SquadOrchestrator,
   SquadStore,
   validatePlan,
+  ClarificationStage,
+  type ClarificationResult,
   type FileConflict,
   type LoadedSquadConfig,
   type MergeReport,
@@ -86,6 +88,13 @@ export class RunsManager {
     this.activeRunsByRepoId.clear();
     this.activeRunsById.clear();
     this.startingRunsByRepoId.clear();
+  }
+
+  /** Evaluates whether the goal needs clarification (Step 0) before PM planning. */
+  async clarifyGoal(repoId: string, goal: string): Promise<ClarificationResult> {
+    this.requireRepo(repoId);
+    const stage = new ClarificationStage();
+    return stage.evaluate(goal);
   }
 
   /** Lists the newest runs for a repository directly from its SQLite store. */

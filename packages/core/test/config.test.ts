@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ConfigError,
+  getAgentPromptCandidates,
   loadSquadConfig,
+  parseFrontmatter,
   renderAgentCommand,
   renderAgentPrompt,
   resolveAgent,
@@ -130,5 +132,48 @@ describe('relative config paths', () => {
       logDir: resolve(configDirectory, 'runtime/logs'),
       copyFiles: [resolve(configDirectory, '.env'), resolve(configDirectory, 'config/local.json')],
     });
+  });
+});
+
+describe('parseFrontmatter and agent markdown candidates', () => {
+  it('parses YAML frontmatter and markdown body cleanly', () => {
+    const raw = `---
+cli: codex
+model: gpt-5-codex
+duty: Chuyên viết Unit Test & E2E
+description: QA Automation Specialist
+---
+# Instructions for Tester
+Always mock network calls.`;
+
+    const parsed = parseFrontmatter(raw);
+    expect(parsed.frontmatter).toEqual({
+      cli: 'codex',
+      model: 'gpt-5-codex',
+      duty: 'Chuyên viết Unit Test & E2E',
+      description: 'QA Automation Specialist',
+    });
+    expect(parsed.body).toBe('# Instructions for Tester\nAlways mock network calls.');
+  });
+
+  it('handles markdown without frontmatter', () => {
+    const raw = '# Just markdown instructions';
+    const parsed = parseFrontmatter(raw);
+    expect(parsed.frontmatter).toEqual({});
+    expect(parsed.body).toBe('# Just markdown instructions');
+  });
+
+  it('orders candidate markdown files appropriately with agent_<role>.md first', () => {
+    const candidates = getAgentPromptCandidates('tester');
+    expect(candidates[0]).toBe('agent_tester.md');
+    expect(candidates).toContain('agents/agent_tester.md');
+    expect(candidates).toContain('agents/tester.md');
+    expect(candidates).toContain('roles/tester.md');
+  });
+
+  it('prioritizes custom promptFile when provided', () => {
+    const candidates = getAgentPromptCandidates('tester', 'custom/my-prompt.md');
+    expect(candidates[0]).toBe('custom/my-prompt.md');
+    expect(candidates[1]).toBe('agent_tester.md');
   });
 });

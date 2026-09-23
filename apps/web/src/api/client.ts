@@ -16,6 +16,7 @@ import type {
   RepoConfigResponse,
   UpdateRepoConfigRequest,
   SquadConfigDto,
+  ClarificationResultDto,
 } from '@squad/shared-types';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -68,6 +69,15 @@ export async function detectRepoInfo(path: string): Promise<DetectRepoResult> {
 export async function listRuns(repoId: string): Promise<ListRunsResponse> {
   const res = await fetch(`/repos/${encodeURIComponent(repoId)}/runs`);
   return handleResponse<ListRunsResponse>(res);
+}
+
+export async function clarifyGoal(repoId: string, goal: string): Promise<ClarificationResultDto> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/clarify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal }),
+  });
+  return handleResponse<ClarificationResultDto>(res);
 }
 
 export async function createPlan(repoId: string, goal: string): Promise<PlanResponse> {
@@ -153,3 +163,49 @@ export async function updateRepoConfig(
   });
   return handleResponse<RepoConfigResponse>(res);
 }
+
+export interface ServerHealthInfo {
+  status: string;
+  uptime: number;
+  timestamp: number;
+  registeredRepos: number;
+}
+
+export async function getServerHealth(): Promise<ServerHealthInfo> {
+  const res = await fetch('/health');
+  return handleResponse<ServerHealthInfo>(res);
+}
+
+export interface AgentFileInfo {
+  role: string;
+  filePath: string;
+  exists: boolean;
+  content: string;
+  candidatePaths: string[];
+}
+
+export interface SaveAgentFileResponse {
+  role: string;
+  filePath: string;
+  saved: boolean;
+}
+
+export async function getAgentFile(repoId: string, role: string): Promise<AgentFileInfo> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/agents/${encodeURIComponent(role)}/file`);
+  return handleResponse<AgentFileInfo>(res);
+}
+
+export async function saveAgentFile(
+  repoId: string,
+  role: string,
+  content: string,
+  filePath?: string
+): Promise<SaveAgentFileResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/agents/${encodeURIComponent(role)}/file`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, filePath }),
+  });
+  return handleResponse<SaveAgentFileResponse>(res);
+}
+

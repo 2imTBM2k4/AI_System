@@ -47,9 +47,30 @@ export const AgentSpecSchema = z
     command: z.array(z.string()).min(1).optional(),
     env: z.record(z.string()).optional(),
     promptFile: z.string().optional(),
+    duty: z.string().optional(),
+    description: z.string().optional(),
 })
     .refine((spec) => spec.cli !== undefined || spec.command !== undefined, {
     message: 'Agent phải khai báo "cli" hoặc "command".',
+});
+export const McpServerSchema = z.object({
+    name: z.string().optional(),
+    command: z.string(),
+    args: z.array(z.string()).optional().default([]),
+    env: z.record(z.string()).optional().default({}),
+    enabled: z.boolean().optional().default(true),
+});
+export const SkillConfigSchema = z.object({
+    name: z.string(),
+    description: z.string().optional().default(''),
+    path: z.string().optional(),
+    enabled: z.boolean().optional().default(true),
+});
+export const PluginConfigSchema = z.object({
+    name: z.string(),
+    version: z.string().optional().default('latest'),
+    enabled: z.boolean().optional().default(true),
+    options: z.record(z.unknown()).optional().default({}),
 });
 export const SquadConfigSchema = z
     .object({
@@ -68,6 +89,9 @@ export const SquadConfigSchema = z
     copyFiles: z.array(z.string()).default([]),
     verify: z.array(z.string()).default([]),
     agents: z.record(AgentSpecSchema),
+    mcpServers: z.record(McpServerSchema).optional().default({}),
+    skills: z.record(SkillConfigSchema).optional().default({}),
+    plugins: z.record(PluginConfigSchema).optional().default({}),
 })
     .refine((config) => 'default' in config.agents, {
     message: 'agents phải có role "default" làm fallback.',
@@ -121,28 +145,130 @@ export function resolveSquadPaths(loadedConfig) {
         copyFiles: config.copyFiles.map((filePath) => resolve(configDirectory, filePath)),
     };
 }
-/** Resolves routing with the default role fallback and loads its optional persona file. */
-export async function resolveAgent(loadedConfig, role) {
-    const spec = loadedConfig.config.agents[role] ?? loadedConfig.config.agents.default;
-    const promptFile = spec.promptFile ?? `roles/${role}.md`;
-    const promptPath = resolve(loadedConfig.configDirectory, promptFile);
-    let persona;
-    try {
-        persona = await readFile(promptPath, 'utf8');
+/** Parses lightweight YAML frontmatter from a markdown file (e.g. cli, model, duty, description). */
+export function parseFrontmatter(rawContent) {
+    const match = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (!match) {
+        return { frontmatter: {}, body: rawContent };
     }
-    catch (error) {
-        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
-            throw error;
+    const yamlBlock = match[1];
+    const body = match[2];
+    const frontmatter = {};
+    const lines = yamlBlock.split(/\r?\n/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#'))
+            continue;
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx === -1)
+            continue;
+        const key = trimmed.slice(0, colonIdx).trim();
+        let val = trimmed.slice(colonIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+        }
+        if (key === 'cli' && ['claude', 'codex', 'gemini', '9router'].includes(val)) {
+            frontmatter.cli = val;
+        }
+        else if (key === 'model') {
+            frontmatter.model = val;
+        }
+        else if (key === 'duty') {
+            frontmatter.duty = val;
+        }
+        else if (key === 'description') {
+            frontmatter.description = val;
         }
     }
-    return { role, spec, persona };
+    return { frontmatter, body };
 }
-/** Prepends a role persona to a task prompt only when a persona file exists. */
+/** Resolves candidate markdown filenames for a given role in prioritized order. */
+export function getAgentPromptCandidates(role, customPromptFile) {
+    const roleAliases = {
+        pm: ['planner'],
+        planner: ['pm'],
+        qa: ['tester', 'reviewer'],
+        tester: ['qa', 'reviewer'],
+        reviewer: ['qa', 'tester'],
+        techlead: ['architect'],
+    };
+    const rolesToSearch = [role, ...(roleAliases[role] ?? [])];
+    const standard = [];
+    for (const r of rolesToSearch) {
+        standard.push(`agent_${r}.md`, `agents/agent_${r}.md`, `agents/${r}.md`, `.agents/${r}.md`, `roles/${r}.md`);
+    }
+    if (customPromptFile) {
+        return [customPromptFile, ...standard];
+    }
+    return standard;
+}
+/** Resolves routing with the default role fallback and loads its optional persona/agent markdown file. */
+export async function resolveAgent(loadedConfig, role) {
+    const roleAliases = {
+        pm: ['pm', 'planner'],
+        planner: ['pm', 'planner'],
+        qa: ['qa', 'tester', 'reviewer'],
+        tester: ['qa', 'tester'],
+        reviewer: ['qa', 'reviewer', 'tester'],
+        techlead: ['techlead', 'architect'],
+    };
+    const candidatesToCheck = roleAliases[role] ?? [role];
+    let baseSpec = loadedConfig.config.agents[role];
+    if (!baseSpec) {
+        for (const alt of candidatesToCheck) {
+            if (loadedConfig.config.agents[alt]) {
+                baseSpec = loadedConfig.config.agents[alt];
+                break;
+            }
+        }
+    }
+    baseSpec = baseSpec ?? loadedConfig.config.agents.default;
+    const candidates = getAgentPromptCandidates(role, baseSpec.promptFile);
+    let persona;
+    let resolvedPromptFile;
+    let frontmatterData = {};
+    for (const candidate of candidates) {
+        const candidatePath = resolve(loadedConfig.configDirectory, candidate);
+        try {
+            const raw = await readFile(candidatePath, 'utf8');
+            const parsed = parseFrontmatter(raw);
+            frontmatterData = parsed.frontmatter;
+            persona = parsed.body.trim().length > 0 ? parsed.body.trim() : undefined;
+            resolvedPromptFile = candidate;
+            break;
+        }
+        catch (error) {
+            if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+                throw error;
+            }
+        }
+    }
+    // Merge frontmatter with baseSpec only if frontmatter was present
+    const hasFrontmatter = Object.keys(frontmatterData).length > 0;
+    const spec = hasFrontmatter
+        ? {
+            ...baseSpec,
+            cli: baseSpec.cli ?? frontmatterData.cli,
+            model: baseSpec.model ?? frontmatterData.model,
+            duty: baseSpec.duty ?? frontmatterData.duty,
+            description: baseSpec.description ?? frontmatterData.description,
+        }
+        : baseSpec;
+    return { role, spec, persona, promptFile: resolvedPromptFile };
+}
+/** Prepends a role persona and duty prompt to a task prompt only when present. */
 export function renderAgentPrompt(agent, taskPrompt) {
-    if (agent.persona === undefined || agent.persona.trim().length === 0) {
+    const parts = [];
+    if (agent.persona !== undefined && agent.persona.trim().length > 0) {
+        parts.push(agent.persona.trim());
+    }
+    else if (agent.spec.duty && agent.spec.duty.trim().length > 0) {
+        parts.push(`[ROLE DUTY & GUIDELINES]:\n${agent.spec.duty.trim()}`);
+    }
+    if (parts.length === 0) {
         return taskPrompt;
     }
-    return `${agent.persona.trim()}\n\n${taskPrompt}`;
+    return `${parts.join('\n\n')}\n\n${taskPrompt}`;
 }
 /** Renders a preset or custom argv template without invoking a shell. */
 export function renderAgentCommand(agent, prompt) {

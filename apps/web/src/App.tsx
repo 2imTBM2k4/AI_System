@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
-import { ActiveRunBanner } from './components/plan/ActiveRunBanner';
-import { PlanCreator } from './components/plan/PlanCreator';
+import { Sidebar, type ActiveView } from './components/layout/Sidebar';
+import { PlanningChatView } from './components/views/PlanningChatView';
+import { ProvidersView } from './components/views/ProvidersView';
+import { AgentsView } from './components/views/AgentsView';
+import { ExtensionsView } from './components/views/ExtensionsView';
+import { SettingsView } from './components/views/SettingsView';
+import { HistoryView } from './components/views/HistoryView';
 import { PlanReviewModal } from './components/plan/PlanReviewModal';
-import { KanbanBoard } from './components/dashboard/KanbanBoard';
-import { AiProviderHubModal } from './components/providers/AiProviderHubModal';
 import { AmbientBackdrop } from './components/glass/AmbientBackdrop';
 import { GlassCard } from './components/glass/GlassCard';
 import { useRepos } from './hooks/useRepos';
 import { useSquadEvents } from './hooks/useSquadEvents';
 import { useTheme } from './hooks/useTheme';
 import type { PlanResponse } from '@squad/shared-types';
-import { Layers, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -29,18 +31,11 @@ export function App() {
     refreshRuns,
   } = useRepos();
 
+  // Active view routing state
+  const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [currentViewRunId, setCurrentViewRunId] = useState<string | null>(null);
   const [createdPlan, setCreatedPlan] = useState<PlanResponse | null>(null);
-  const [showAiHubModal, setShowAiHubModal] = useState(false);
-
-  // Mặc định view run active gần nhất nếu có, hoặc run đầu tiên trong lịch sử
-  useEffect(() => {
-    if (activeRun) {
-      setCurrentViewRunId(activeRun.id);
-    } else if (runs.length > 0 && !currentViewRunId) {
-      setCurrentViewRunId(runs[0].id);
-    }
-  }, [activeRun, runs, currentViewRunId]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Hook quản lý snapshot + SSE delta cho run đang xem
   const {
@@ -53,6 +48,8 @@ export function App() {
     dispatch,
     refresh: refreshRunDetail,
   } = useSquadEvents(currentViewRunId);
+
+  const selectedRepo = repos.find((r) => r.id === selectedRepoId) || null;
 
   const handleSelectRepo = (repoId: string) => {
     setSelectedRepoId(repoId);
@@ -70,13 +67,44 @@ export function App() {
     refreshRunDetail();
   };
 
-  const handleRefresh = () => {
-    refreshRuns();
+  const handleSelectRun = (runId: string | null) => {
+    setCurrentViewRunId(runId);
+    if (runId) {
+      refreshRunDetail();
+    }
+  };
+
+  const handleViewRun = (runId: string) => {
+    setCurrentViewRunId(runId);
+    setActiveView('history');
     refreshRunDetail();
+  };
+
+  const handleNewPlan = () => {
+    setActiveView('chat');
   };
 
   const handleTaskCancelled = (taskId: string) => {
     dispatch({ type: 'TASK_CANCELLED', taskId });
+  };
+
+  const getViewTitle = () => {
+    switch (activeView) {
+      case 'chat':
+        return 'Trang Chat Lập Kế Hoạch';
+      case 'providers':
+        return 'Thiết Lập Nhà Cung Cấp Model';
+      case 'agents':
+        return 'Thiết Lập Vai Trò Agent';
+      case 'extensions':
+        return 'Thiết Lập Skill & Plugin';
+      case 'settings':
+        return 'Cài Đặt Hệ Thống & Chế Độ Thực Thi';
+      case 'history':
+        return 'Lịch Sử Kế Hoạch & Các Lần Thực Thi';
+      default:
+        return 'Squad AI Orchestrator';
+    }
   };
 
   return (
@@ -84,122 +112,118 @@ export function App() {
       {/* Liquid Ambient Lighting Mesh */}
       <AmbientBackdrop />
 
-      {/* Top Glass Navbar */}
+      {/* Top Header Navbar */}
       <Header
         repos={repos}
         selectedRepoId={selectedRepoId}
         onSelectRepo={handleSelectRepo}
         onRepoAdded={refreshRepos}
-        onOpenAiHub={() => setShowAiHubModal(true)}
         isConnected={isConnected}
         theme={theme}
         onToggleTheme={toggleTheme}
+        activeViewTitle={getViewTitle()}
       />
 
       <div className="flex-1 flex overflow-hidden relative z-10">
-        {/* Left Frosted Glass Sidebar */}
+        {/* Left AI Chat App Sidebar */}
         <Sidebar
+          activeView={activeView}
+          onSelectView={setActiveView}
           runs={runs}
           selectedRunId={currentViewRunId}
-          onSelectRun={(runId) => setCurrentViewRunId(runId)}
-          onRefresh={handleRefresh}
+          onSelectRun={handleSelectRun}
+          onNewPlan={handleNewPlan}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+        <main className="flex-1 overflow-hidden flex flex-col relative">
           {reposError && (
-            <GlassCard
-              variant="glow-rose"
-              className="p-4 text-rose-700 dark:text-rose-300 text-sm flex items-center gap-2.5 border-rose-500/30"
-            >
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-500" />
-              <span>{reposError}</span>
-            </GlassCard>
+            <div className="p-4 m-4">
+              <GlassCard
+                variant="glow-rose"
+                className="p-4 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2.5 border-rose-500/30"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{reposError}</span>
+              </GlassCard>
+            </div>
           )}
 
           {isReposLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-400 gap-3">
+            <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400 gap-3">
               <div className="relative">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 dark:text-indigo-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                 <div className="absolute inset-0 blur-md bg-indigo-500/30 -z-10 rounded-full" />
               </div>
               <span className="text-xs font-medium tracking-wide uppercase">
                 Đang nạp dữ liệu repositories...
               </span>
             </div>
-          ) : !selectedRepoId ? (
-            <GlassCard
-              variant="default"
-              className="text-center py-20 p-8 max-w-2xl mx-auto"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/5">
-                <Layers className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
-              </div>
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-                Chưa có Repository nào được chọn
-              </h2>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
-                Vui lòng chọn repository từ thanh menu trên hoặc bấm &ldquo;Thêm Repo&rdquo; để đăng ký thư mục dự án và bắt đầu điều phối đa agent.
-              </p>
-            </GlassCard>
           ) : (
             <>
-              {/* RÀNG BUỘC KIẾN TRÚC: 1 RUN ACTIVE / REPO
-                  Nếu repo có run active: ẨN form tạo plan, HIỆN ActiveRunBanner
-                  Nếu repo rảnh: HIỆN PlanCreator
-              */}
-              {activeRun ? (
-                <ActiveRunBanner
-                  activeRun={activeRun}
-                  onViewRun={(runId) => setCurrentViewRunId(runId)}
-                />
-              ) : (
-                <PlanCreator
+              {/* RENDER ACTIVE VIEW */}
+              {activeView === 'chat' && (
+                <PlanningChatView
                   repoId={selectedRepoId}
+                  activeRun={activeRun}
+                  currentViewRunId={currentViewRunId}
+                  viewingRun={viewingRun}
+                  viewingTasks={viewingTasks}
+                  viewingLogs={viewingLogs}
                   onPlanCreated={handlePlanCreated}
+                  onRunStarted={handleRunStarted}
+                  onOpenReviewModal={(p) => setCreatedPlan(p)}
+                  onViewRun={handleViewRun}
+                  onTaskCancelled={handleTaskCancelled}
+                  onNavigateToProviders={() => setActiveView('providers')}
                 />
               )}
 
-              {/* View Run Board */}
-              {isRunLoading ? (
-                <div className="flex items-center justify-center py-20 text-zinc-500 dark:text-zinc-400 gap-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-indigo-500 dark:text-indigo-400" />
-                  <span className="text-xs font-mono">Đang nạp snapshot trạng thái...</span>
-                </div>
-              ) : viewingRun ? (
-                <>
-                  {runError && (
-                    <GlassCard
-                      variant="glow-amber"
-                      className="p-3 mb-4 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2 border-amber-500/30"
-                    >
-                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
-                      <span>{runError}</span>
-                    </GlassCard>
-                  )}
-                  <KanbanBoard
-                    run={viewingRun}
-                    tasks={viewingTasks}
-                    taskLogs={viewingLogs}
-                    repoId={selectedRepoId || undefined}
-                    onTaskCancelled={handleTaskCancelled}
-                    onRunStarted={handleRunStarted}
-                  />
-                </>
-              ) : runError ? (
-                <GlassCard
-                  variant="glow-rose"
-                  className="p-4 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2"
-                >
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <span>{runError}</span>
-                </GlassCard>
-              ) : (
-                <GlassCard variant="default" className="text-center py-16 p-6">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Chọn một run từ danh sách lịch sử ở sidebar trái để xem chi tiết điều phối.
-                  </p>
-                </GlassCard>
+              {activeView === 'providers' && (
+                <ProvidersView onSaved={refreshRepos} />
+              )}
+
+              {activeView === 'agents' && (
+                <AgentsView
+                  selectedRepoId={selectedRepoId}
+                  onSaved={refreshRepos}
+                />
+              )}
+
+              {activeView === 'extensions' && (
+                <ExtensionsView
+                  selectedRepoId={selectedRepoId}
+                  onSaved={refreshRepos}
+                />
+              )}
+
+              {activeView === 'settings' && (
+                <SettingsView
+                  selectedRepo={selectedRepo}
+                  onSaved={refreshRepos}
+                />
+              )}
+
+              {activeView === 'history' && (
+                <HistoryView
+                  runs={runs}
+                  selectedRunId={currentViewRunId}
+                  onSelectRun={handleSelectRun}
+                  onRefresh={() => {
+                    refreshRuns();
+                    if (currentViewRunId) refreshRunDetail();
+                  }}
+                  repoId={selectedRepoId || undefined}
+                  viewingRun={viewingRun}
+                  viewingTasks={viewingTasks}
+                  viewingLogs={viewingLogs}
+                  isRunLoading={isRunLoading}
+                  runError={runError}
+                  onTaskCancelled={handleTaskCancelled}
+                  onRunStarted={handleRunStarted}
+                />
               )}
             </>
           )}
@@ -213,14 +237,6 @@ export function App() {
           planData={createdPlan}
           onClose={() => setCreatedPlan(null)}
           onRunStarted={handleRunStarted}
-        />
-      )}
-
-      {/* AI Provider Hub & Model Manager Modal */}
-      {showAiHubModal && (
-        <AiProviderHubModal
-          selectedRepoId={selectedRepoId}
-          onClose={() => setShowAiHubModal(false)}
         />
       )}
     </div>

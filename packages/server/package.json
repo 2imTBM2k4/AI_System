@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b",
+    "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "test": "tsc -b && vitest run"
   },

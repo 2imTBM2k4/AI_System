@@ -25,6 +25,29 @@ export const registerRunsRoutes = async (app, options) => {
             return handleRouteError(error, reply);
         }
     });
+    // POST /repos/:id/clarify (Step 0 in workflow)
+    app.post('/repos/:id/clarify', {
+        schema: {
+            params: {
+                type: 'object',
+                required: ['id'],
+                properties: { id: { type: 'string', minLength: 1 } },
+            },
+            body: {
+                type: 'object',
+                required: ['goal'],
+                properties: { goal: { type: 'string' } },
+            },
+        },
+    }, async (request, reply) => {
+        try {
+            const result = await runsManager.clarifyGoal(request.params.id, request.body.goal || '');
+            return reply.code(200).send(result);
+        }
+        catch (error) {
+            return handleRouteError(error, reply);
+        }
+    });
     // POST /repos/:id/plan
     app.post('/repos/:id/plan', {
         schema: {

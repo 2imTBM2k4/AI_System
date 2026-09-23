@@ -32,6 +32,12 @@ export async function buildServer(options = {}) {
     for (const failure of reconciliationFailures) {
         app.log.warn({ repoId: failure.repo.id, repoPath: failure.repo.path, error: failure.message }, 'Could not reconcile registered repository during startup');
     }
+    app.get('/health', async () => ({
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: Date.now(),
+        registeredRepos: registry.list().length,
+    }));
     app.get('/repos', async () => ({ repos: registry.list() }));
     app.post('/repos', {
         schema: {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { loadSquadConfig, mergeRun, resolveSquadPaths, SquadOrchestrator, SquadStore, validatePlan, } from '@squad/core';
+import { loadSquadConfig, mergeRun, resolveSquadPaths, SquadOrchestrator, SquadStore, validatePlan, ClarificationStage, } from '@squad/core';
 export class RunsManagerError extends Error {
     code;
     constructor(code, message) {
@@ -31,6 +31,12 @@ export class RunsManager {
         this.activeRunsByRepoId.clear();
         this.activeRunsById.clear();
         this.startingRunsByRepoId.clear();
+    }
+    /** Evaluates whether the goal needs clarification (Step 0) before PM planning. */
+    async clarifyGoal(repoId, goal) {
+        this.requireRepo(repoId);
+        const stage = new ClarificationStage();
+        return stage.evaluate(goal);
     }
     /** Lists the newest runs for a repository directly from its SQLite store. */
     async listRuns(repoId, limit = 10) {

@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "squad": "tsx packages/cli/src/index.ts",
+    "dev:server": "pnpm --filter @squad/server dev",
+    "dev:web": "pnpm --filter @squad/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test"
   },

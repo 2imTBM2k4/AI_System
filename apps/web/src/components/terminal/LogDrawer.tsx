@@ -5,12 +5,16 @@ import type { TaskRecordDto } from '@squad/shared-types';
 interface LogDrawerProps {
   task: TaskRecordDto | null;
   logs: string[];
+  runningTasks?: TaskRecordDto[];
+  onSelectTask?: (taskId: string) => void;
   onClose: () => void;
 }
 
 export const LogDrawer: React.FC<LogDrawerProps> = ({
   task,
   logs,
+  runningTasks = [],
+  onSelectTask,
   onClose,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -87,6 +91,45 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
         </div>
       </div>
 
+      {/* Live Streaming Indicator Banner */}
+      {task.status === 'running' && (
+        <div className="px-4 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-300 font-mono backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </span>
+            <span className="font-bold tracking-wide">🔴 LIVE STREAMING</span>
+            <span className="text-amber-200/80">• Agent đang thực thi lệnh</span>
+          </div>
+          {task.pid && (
+            <span className="text-[10px] text-amber-300/80 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+              PID: {task.pid}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Running task switcher tabs if multiple tasks are running */}
+      {runningTasks.length > 1 && (
+        <div className="px-4 py-2 border-b border-white/[0.08] bg-black/40 flex items-center gap-2 overflow-x-auto text-[11px] font-mono">
+          <span className="text-zinc-500 shrink-0">Chuyển task:</span>
+          {runningTasks.map((rt) => (
+            <button
+              key={rt.id}
+              onClick={() => onSelectTask?.(rt.id)}
+              className={`px-2 py-0.5 rounded-md border transition-all shrink-0 cursor-pointer ${
+                rt.id === task.id
+                  ? 'bg-amber-500/25 border-amber-400 text-amber-300 font-bold shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                  : 'bg-white/[0.04] border-white/[0.08] text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              #{rt.id} ({rt.role})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Terminal View */}
       <div
         ref={terminalRef}
@@ -119,6 +162,13 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
               {chunk}
             </pre>
           ))
+        )}
+
+        {task.status === 'running' && (
+          <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs pt-3 pb-1">
+            <span className="inline-block w-2 h-4 bg-emerald-400 animate-pulse" />
+            <span className="text-zinc-400 italic">Đang lắng nghe tiến trình agent qua SSE stream...</span>
+          </div>
         )}
       </div>
 

@@ -3,7 +3,9 @@ export {
   AgentSpecSchema,
   CLI_PRESETS,
   ConfigError,
+  getAgentPromptCandidates,
   loadSquadConfig,
+  parseFrontmatter,
   parseSquadConfig,
   renderAgentCommand,
   renderAgentPrompt,
@@ -59,3 +61,4 @@ export {
   type TaskRecord,
 } from './store.js';
 export type { ExecutionMode, Plan, ReviewResult, ReviewStatus, SquadEvent, Task, TaskResult, TaskStatus } from './types.js';
+export * from './stages/index.js';

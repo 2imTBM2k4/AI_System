@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Terminal,
+  FileText,
   X,
   Copy,
   Check,
@@ -21,6 +22,9 @@ interface LogDrawerProps {
   onClose: () => void;
   mode?: 'docked' | 'fixed';
   width?: number;
+  activeTab?: 'terminal' | 'markdown';
+  onTabChange?: (tab: 'terminal' | 'markdown') => void;
+  hasMarkdownDoc?: boolean;
 }
 
 const getRoleIcon = (role: string) => {
@@ -57,6 +61,9 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
   onClose,
   mode = 'docked',
   width,
+  activeTab = 'terminal',
+  onTabChange,
+  hasMarkdownDoc = false,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -141,6 +148,38 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {/* Tab Switcher khi có cả Markdown Preview */}
+          {hasMarkdownDoc && onTabChange && (
+            <div className="flex items-center p-0.5 bg-black/40 rounded-lg border border-[#3a3934] mr-1">
+              <button
+                type="button"
+                onClick={() => onTabChange('terminal')}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTab === 'terminal'
+                    ? 'bg-[#2a2924] text-teal-300 shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                title="Xem Terminal Log"
+              >
+                <Terminal className="w-3 h-3" />
+                <span className="hidden sm:inline">Terminal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onTabChange('markdown')}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTab === 'markdown'
+                    ? 'bg-[#2a2924] text-teal-300 shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                title="Xem Markdown Preview"
+              >
+                <FileText className="w-3 h-3" />
+                <span className="hidden sm:inline">Markdown</span>
+              </button>
+            </div>
+          )}
+
           {/* Nút phóng to / thu nhỏ panel */}
           <button
             type="button"

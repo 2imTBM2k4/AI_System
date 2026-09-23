@@ -566,5 +566,37 @@ describe('Server runs API routes', () => {
 
     expect(retriedTask?.status).toBe('passed');
   });
+
+  it('handles GET /repos/:id/file with safe reading, 404 for missing files, and 400 for path traversal', async () => {
+    activeRegistry = await RepoRegistry.open(registryHome);
+    const { repo } = await activeRegistry.register(repoPath);
+    activeApp = await buildServer({ registry: activeRegistry });
+    const app = activeApp;
+
+    // Happy path: reading README.md created in beforeEach
+    const resSuccess = await app.inject({
+      method: 'GET',
+      url: `/repos/${repo.id}/file?path=README.md`,
+    });
+    expect(resSuccess.statusCode).toBe(200);
+    expect(resSuccess.json().content).toBe('# server fixture\n');
+    expect(resSuccess.json().path).toBe('README.md');
+
+    // Missing file returns 404
+    const resNotFound = await app.inject({
+      method: 'GET',
+      url: `/repos/${repo.id}/file?path=non-existent-doc.md`,
+    });
+    expect(resNotFound.statusCode).toBe(404);
+    expect(resNotFound.json().error.code).toBe('FILE_NOT_FOUND');
+
+    // Path traversal attempt returns 400
+    const resTraversal = await app.inject({
+      method: 'GET',
+      url: `/repos/${repo.id}/file?path=../../outside.txt`,
+    });
+    expect(resTraversal.statusCode).toBe(400);
+    expect(resTraversal.json().error.code).toBe('INVALID_PATH');
+  });
 });
 

@@ -165,6 +165,11 @@ export interface MergeResponse {
   report: MergeReportDto;
 }
 
+export interface FileContentResponse {
+  content: string;
+  path: string;
+}
+
 export interface ApiErrorResponse {
   error: {
     code: string;

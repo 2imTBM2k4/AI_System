@@ -24,22 +24,22 @@ export declare const PlanTaskSchema: z.ZodObject<{
     verify: z.ZodOptional<z.ZodString>;
     branch: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    role: string;
     id: string;
     title: string;
-    role: string;
     files: string[];
     dependsOn: string[];
     prompt: string;
     verify?: string | undefined;
     branch?: string | undefined;
 }, {
+    role: string;
     id: string;
     title: string;
-    role: string;
     prompt: string;
+    verify?: string | undefined;
     files?: string[] | undefined;
     dependsOn?: string[] | undefined;
-    verify?: string | undefined;
     branch?: string | undefined;
 }>;
 export declare const PlanSchema: z.ZodObject<{
@@ -53,29 +53,29 @@ export declare const PlanSchema: z.ZodObject<{
         verify: z.ZodOptional<z.ZodString>;
         branch: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
+        role: string;
         id: string;
         title: string;
-        role: string;
         files: string[];
         dependsOn: string[];
         prompt: string;
         verify?: string | undefined;
         branch?: string | undefined;
     }, {
+        role: string;
         id: string;
         title: string;
-        role: string;
         prompt: string;
+        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
-        verify?: string | undefined;
         branch?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     tasks: {
+        role: string;
         id: string;
         title: string;
-        role: string;
         files: string[];
         dependsOn: string[];
         prompt: string;
@@ -84,13 +84,13 @@ export declare const PlanSchema: z.ZodObject<{
     }[];
 }, {
     tasks: {
+        role: string;
         id: string;
         title: string;
-        role: string;
         prompt: string;
+        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
-        verify?: string | undefined;
         branch?: string | undefined;
     }[];
 }>;

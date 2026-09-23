@@ -60,6 +60,7 @@ export declare class SquadStore {
     getRun(id: string): RunRecord | undefined;
     getRunPlan(id: string): Plan | undefined;
     listTasks(runId: string): TaskRecord[];
+    getTask(runId: string, taskId: string): TaskRecord | undefined;
     /** Lists newest runs first for the CLI history view. */
     listRuns(limit: number): RunRecord[];
     listRunningRuns(): RunRecord[];

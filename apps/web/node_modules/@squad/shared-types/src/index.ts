@@ -107,6 +107,25 @@ export interface PlanResponse {
   warnings: FileConflictDto[];
 }
 
+export type ChatMode = 'auto' | 'ask' | 'plan';
+
+export interface ChatMessageRequest {
+  message: string;
+  mode?: ChatMode;
+}
+
+export type ChatMessageResponse =
+  | {
+      type: 'answer';
+      reply: string;
+    }
+  | {
+      type: 'plan';
+      runId: string;
+      plan: PlanDto;
+      warnings: FileConflictDto[];
+    };
+
 export interface CreateRunRequest {
   runId?: string;
   plan?: PlanDto;
@@ -122,6 +141,12 @@ export interface RunDetailResponse {
 }
 
 export interface CancelTaskResponse {
+  message: string;
+  taskId: string;
+  runId: string;
+}
+
+export interface RetryTaskResponse {
   message: string;
   taskId: string;
   runId: string;

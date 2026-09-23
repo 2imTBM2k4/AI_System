@@ -51,15 +51,74 @@ export async function repoRoot(cwd) {
 }
 /** Creates a new branch and attaches it to a dedicated worktree. */
 export async function createWorktree(repoPath, worktreePath, branch, baseBranch) {
-    await runGit(repoPath, [
-        'worktree',
-        'add',
-        '--no-track',
-        '-B',
-        branch,
-        worktreePath,
-        baseBranch,
-    ]);
+    // Prune any disconnected worktrees first
+    try {
+        await runGit(repoPath, ['worktree', 'prune']);
+    }
+    catch { }
+    // Check if branch is currently checked out in another worktree
+    try {
+        const { stdout } = await runGit(repoPath, ['worktree', 'list', '--porcelain']);
+        const blocks = stdout.split(/\r?\n\r?\n/);
+        for (const block of blocks) {
+            const lines = block.split(/\r?\n/);
+            let wtPath;
+            let wtBranch;
+            for (const line of lines) {
+                if (line.startsWith('worktree ')) {
+                    wtPath = line.slice('worktree '.length).trim();
+                }
+                else if (line.startsWith('branch ')) {
+                    wtBranch = line.slice('branch '.length).trim();
+                }
+            }
+            if (wtPath && wtBranch && (wtBranch === `refs/heads/${branch}` || wtBranch === branch)) {
+                if (wtPath !== repoPath) {
+                    try {
+                        await runGit(repoPath, ['worktree', 'remove', '--force', wtPath]);
+                        await runGit(repoPath, ['worktree', 'prune']);
+                    }
+                    catch { }
+                }
+            }
+        }
+    }
+    catch { }
+    try {
+        await runGit(repoPath, [
+            'worktree',
+            'add',
+            '--no-track',
+            '-B',
+            branch,
+            worktreePath,
+            baseBranch,
+        ]);
+    }
+    catch (err) {
+        const msg = String(err);
+        if (msg.includes('is already used by worktree at')) {
+            const match = msg.match(/is already used by worktree at '([^']+)'/);
+            if (match && match[1]) {
+                try {
+                    await runGit(repoPath, ['worktree', 'remove', '--force', match[1]]);
+                    await runGit(repoPath, ['worktree', 'prune']);
+                }
+                catch { }
+            }
+            await runGit(repoPath, [
+                'worktree',
+                'add',
+                '--no-track',
+                '-B',
+                branch,
+                worktreePath,
+                baseBranch,
+            ]);
+            return;
+        }
+        throw err;
+    }
 }
 /** Removes a clean worktree. It intentionally does not force-delete uncommitted work. */
 export async function removeWorktree(repoPath, worktreePath) {

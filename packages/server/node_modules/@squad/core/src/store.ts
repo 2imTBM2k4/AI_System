@@ -309,6 +309,16 @@ export class SquadStore {
     return rows.map((row) => this.toTaskRecord(row));
   }
 
+  getTask(runId: string, taskId: string): TaskRecord | undefined {
+    const row = this.database
+      .prepare('SELECT * FROM tasks WHERE run_id = ? AND id = ?')
+      .get(runId, taskId);
+    if (!row) {
+      return undefined;
+    }
+    return this.toTaskRecord(row);
+  }
+
   /** Lists newest runs first for the CLI history view. */
   listRuns(limit: number): RunRecord[] {
     const rows = this.database

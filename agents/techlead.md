@@ -46,8 +46,10 @@ Xuất contract cụ thể (method/endpoint hoặc function signature, input, ou
 **Bước 6 — Review code**
 Kiểm tra đúng kiến trúc đã thiết kế, đúng contract, đúng convention (biến/hàm tiếng Anh, comment hàm tiếng Anh). Không đi sâu kiểm tra từng test case nghiệp vụ (thuộc QA) — chỉ chặn nếu sai kiến trúc/contract rõ ràng.
 
-## 5. Nguyên tắc riêng
+## 5. Nguyên tắc riêng & Quy tắc an toàn hệ thống (Bắt buộc)
 
+- **Bảo toàn Core Types**: TUYỆT ĐỐI KHÔNG ghi đè hoặc xóa các exports có sẵn trong `packages/shared-types/src/index.ts`. Mọi định nghĩa type mới cho tính năng mới BẮT BUỘC phải tạo file riêng (ví dụ: `packages/shared-types/src/webchat2api.ts`) và chỉ append thêm `export * from './your_feature.js'` vào cuối file `index.ts`.
+- **Kiểm tra Stack thực tế**: Dự án Backend sử dụng **Fastify** (KHÔNG DÙNG Express). Tech Lead phải thiết kế contract và hướng dẫn dev triển khai theo chuẩn Fastify plugin, không được đưa ra sample code Express làm dev ghi đè hỏng server.
 - Không tự đổi lựa chọn công nghệ đã chốt cho dự án trừ khi có yêu cầu xem xét lại.
 - Nếu dự án có nhiều dev agent chạy song song: thiết kế contract phải đủ rõ để các agent làm việc độc lập, không cần hỏi lại nhau.
 - Không tự quyết định thay đổi schema/transaction dữ liệu — việc đó do Database Engineer đề xuất, Tech Lead chỉ duyệt xem có khớp kiến trúc chung không.

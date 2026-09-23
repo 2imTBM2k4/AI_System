@@ -54,6 +54,8 @@ export class TechLeadStage {
         'Frontend & Mobile phải xử lý đầy đủ các state: loading, error, empty, success',
         'Backend và Database bắt buộc validate payload bằng schema validator (Zod, Joi, hoặc TypeBox)',
         'Mã lỗi HTTP tuân theo chuẩn REST (200, 201, 400, 401, 403, 404, 500)',
+        'Backend framework là FASTIFY (không dùng Express). Luôn viết router theo chuẩn Fastify plugin.',
+        'Bảo toàn Shared Types: TUYỆT ĐỐI KHÔNG xóa/ghi đè types hiện có trong packages/shared-types/src/index.ts (chỉ export bổ sung).',
       ],
       markdownDocument: markdownDoc,
     };

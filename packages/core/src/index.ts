@@ -33,7 +33,10 @@ export {
   GitCommandError,
 } from './git.js';
 export {
+  buildConsultationPrompt,
   buildPlannerPrompt,
+  buildSmartChatPrompt,
+  cleanChatReply,
   detectCycle,
   extractJson,
   fileConflicts,
@@ -43,6 +46,7 @@ export {
   PlanTaskSchema,
   repoOverview,
   topoSort,
+  tryParsePlanOutput,
   validatePlan,
   type FileConflict,
   type RepoOverview,

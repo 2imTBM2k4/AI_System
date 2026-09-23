@@ -1,7 +1,7 @@
 import { type ClarificationResult, type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
 import { RepoRegistry } from './registry.js';
 export declare class RunsManagerError extends Error {
-    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
+    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'TASK_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
     constructor(code: RunsManagerError['code'], message: string);
 }
 export interface StartRunResult {
@@ -35,6 +35,16 @@ export declare class RunsManager {
         plan: Plan;
         warnings: FileConflict[];
     }>;
+    /** Handles chat message: answers questions directly or plans multi-agent tasks. */
+    handleChat(repoId: string, message: string, mode?: 'auto' | 'ask' | 'plan'): Promise<{
+        type: 'answer';
+        reply: string;
+    } | {
+        type: 'plan';
+        runId: string;
+        plan: Plan;
+        warnings: FileConflict[];
+    }>;
     /**
      * Starts a background run for a repository.
      * Concurrency-safe: rejects overlapping runs on the same repository, but remains
@@ -50,6 +60,11 @@ export declare class RunsManager {
     getRunDetail(runId: string): Promise<RunDetail>;
     /** Requests task cancellation on an active orchestrator. */
     cancelTask(runId: string, taskId: string): void;
+    /** Retries a failed or skipped task on a run. */
+    retryTask(runId: string, taskId: string): Promise<{
+        runId: string;
+        taskId: string;
+    }>;
     /** Executes mergeRun on a finished run, integrating passed task branches. */
     mergeRun(runId: string): Promise<MergeReport>;
     /**

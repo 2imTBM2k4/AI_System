@@ -37,9 +37,9 @@ export declare const PlanTaskSchema: z.ZodObject<{
     title: string;
     role: string;
     prompt: string;
-    verify?: string | undefined;
     files?: string[] | undefined;
     dependsOn?: string[] | undefined;
+    verify?: string | undefined;
     branch?: string | undefined;
 }>;
 export declare const PlanSchema: z.ZodObject<{
@@ -66,9 +66,9 @@ export declare const PlanSchema: z.ZodObject<{
         title: string;
         role: string;
         prompt: string;
-        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
+        verify?: string | undefined;
         branch?: string | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
@@ -88,20 +88,28 @@ export declare const PlanSchema: z.ZodObject<{
         title: string;
         role: string;
         prompt: string;
-        verify?: string | undefined;
         files?: string[] | undefined;
         dependsOn?: string[] | undefined;
+        verify?: string | undefined;
         branch?: string | undefined;
     }[];
 }>;
 /** Builds the planning prompt for roadmap execution. */
 export declare function buildPlannerPrompt(cfg: SquadConfig, goal: string, overview: RepoOverview): string;
+/** Builds a consultation prompt for pure Q&A and code explanation without task planning. */
+export declare function buildConsultationPrompt(cfg: SquadConfig, message: string, overview: RepoOverview): string;
+/** Builds an intelligent prompt that lets the agent detect intent: Q&A / discussion vs actionable multi-agent task planning. */
+export declare function buildSmartChatPrompt(cfg: SquadConfig, message: string, overview: RepoOverview): string;
 /** Summarizes tracked files without reading repository contents. */
 export declare function repoOverview(repoPath: string): Promise<RepoOverview>;
 /** Extracts a balanced JSON object from agent output, filtering out reasoning tags and prioritizing objects containing "tasks". */
 export declare function extractJson(text: string): string;
 /** Parses, validates, and completes an agent-generated plan. */
 export declare function parsePlanOutput(output: string, goal: string): Plan;
+/** Tries to parse a plan from agent output, returning null if it's not a valid plan. */
+export declare function tryParsePlanOutput(output: string, goal: string): Plan | null;
+/** Strips reasoning tags and trims chat reply text. */
+export declare function cleanChatReply(text: string): string;
 /** Validates a plan document from any source and fills in deterministic branch names. */
 export declare function validatePlan(value: unknown, goal: string): Plan;
 /** Rejects duplicate ids, missing dependencies, and all dependency cycles. */

@@ -2,12 +2,12 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { renderAgentCommand, renderAgentPrompt, loadSquadConfig, resolveAgent, resolveSquadPaths, } from './config.js';
 import { commitAll, createWorktree, listChangedFiles, removeWorktree, rollbackWorkingTree, runGit } from './git.js';
 import { mergeRun } from './merge.js';
-import { buildPlannerPrompt, extractJson, fileConflicts, parsePlanOutput, repoOverview, validatePlan, } from './planner.js';
+import { buildConsultationPrompt, buildPlannerPrompt, buildSmartChatPrompt, cleanChatReply, extractJson, fileConflicts, parsePlanOutput, repoOverview, tryParsePlanOutput, validatePlan, } from './planner.js';
 import { SquadStore } from './store.js';
 import { ClarificationStage, TechLeadStage, DevOpsStage } from './stages/index.js';
 export class RunnerError extends Error {
@@ -86,6 +86,63 @@ export class SquadOrchestrator extends EventEmitter {
         const warnings = fileConflicts(plan.tasks);
         this.emit('plan:done', { type: 'plan:done', runId, plan, warnings });
         return { runId, plan, warnings };
+    }
+    /**
+     * Intelligently handles user chat: either answers questions directly in Markdown or plans multi-agent tasks.
+     */
+    async chat(repoPath, message, mode = 'auto') {
+        const overview = await repoOverview(repoPath);
+        const agent = await resolveAgent(this.options.config, 'planner');
+        let agentPrompt;
+        if (mode === 'ask') {
+            agentPrompt = buildConsultationPrompt(this.options.config.config, message, overview);
+        }
+        else if (mode === 'plan') {
+            agentPrompt = buildPlannerPrompt(this.options.config.config, message, overview);
+        }
+        else {
+            agentPrompt = buildSmartChatPrompt(this.options.config.config, message, overview);
+        }
+        const prompt = renderAgentPrompt(agent, agentPrompt);
+        const command = renderAgentCommand(agent, prompt);
+        const outputChunks = [];
+        this.emit('plan:start', { type: 'plan:start', goal: message });
+        const processResult = await this.spawnProcess(command[0], command.slice(1), repoPath, agent.spec.env, false, undefined, (chunk) => {
+            const text = chunk.toString();
+            outputChunks.push(text);
+            this.emit('plan:log', { type: 'plan:log', chunk: text });
+        });
+        if (processResult.exitCode !== 0 || processResult.timedOut) {
+            const outputText = outputChunks.join('').trim();
+            const failureMsg = this.processFailureMessage(processResult);
+            throw new Error(processResult.timedOut
+                ? `Planner timed out after ${this.options.config.config.timeoutMinutes} minutes.`
+                : outputText
+                    ? `${failureMsg} Chi tiết: ${outputText.slice(-500)}`
+                    : failureMsg);
+        }
+        const rawOutput = outputChunks.join('');
+        if (mode === 'ask') {
+            return { type: 'answer', reply: cleanChatReply(rawOutput) };
+        }
+        if (mode === 'plan') {
+            const plan = parsePlanOutput(rawOutput, message);
+            const runId = randomUUID();
+            this.options.store.createPlannedRun(runId, repoPath, plan);
+            const warnings = fileConflicts(plan.tasks);
+            this.emit('plan:done', { type: 'plan:done', runId, plan, warnings });
+            return { type: 'plan', runId, plan, warnings };
+        }
+        // mode === 'auto': try to parse as plan
+        const maybePlan = tryParsePlanOutput(rawOutput, message);
+        if (maybePlan && maybePlan.tasks && maybePlan.tasks.length > 0) {
+            const runId = randomUUID();
+            this.options.store.createPlannedRun(runId, repoPath, maybePlan);
+            const warnings = fileConflicts(maybePlan.tasks);
+            this.emit('plan:done', { type: 'plan:done', runId, plan: maybePlan, warnings });
+            return { type: 'plan', runId, plan: maybePlan, warnings };
+        }
+        return { type: 'answer', reply: cleanChatReply(rawOutput) };
     }
     /** Persists a hand-edited plan without invoking the planner agent. */
     async createRunFromPlan(repoPath, plan) {
@@ -209,6 +266,48 @@ export class SquadOrchestrator extends EventEmitter {
         }
         activeTask.cancelled = true;
         activeTask.child?.kill();
+    }
+    /** Re-executes a failed or skipped task. */
+    async retryTask(runId, repoPath, taskId) {
+        const run = this.options.store.getRun(runId);
+        if (!run || !run.plan) {
+            throw new Error(`Run ${runId} or its plan not found.`);
+        }
+        const task = run.plan.tasks.find((t) => t.id === taskId);
+        if (!task) {
+            throw new Error(`Task ${taskId} not found in run ${runId}.`);
+        }
+        const paths = resolveSquadPaths(this.options.config);
+        const logPath = join(paths.logDir, runId, `${task.id}.log`);
+        await mkdir(dirname(logPath), { recursive: true });
+        const isDirect = this.options.config.config.executionMode !== 'worktree';
+        if (!isDirect) {
+            const targetDir = resolve(paths.worktreeDir, runId, task.id);
+            try {
+                await removeWorktree(repoPath, targetDir);
+            }
+            catch { }
+            try {
+                await runGit(repoPath, ['worktree', 'prune']);
+            }
+            catch { }
+        }
+        // Mark task running
+        const startedAt = new Date().toISOString();
+        this.options.store.recordTaskStarted(runId, task.id, startedAt, {
+            type: 'task:start',
+            runId,
+            taskId: task.id,
+        });
+        this.emit('task:start', { type: 'task:start', runId, taskId: task.id });
+        const result = await this.executeTask(runId, repoPath, task, logPath, paths.worktreeDir);
+        this.persistTaskResult(runId, result);
+        const allTasks = this.options.store.listTasks(runId);
+        const allPassed = allTasks.length > 0 && allTasks.every((t) => t.status === 'passed');
+        if (allPassed) {
+            this.options.store.completeRun(runId, 'completed', []);
+        }
+        return result;
     }
     async executeTask(runId, repoPath, task, logPath, worktreeRoot) {
         const activeTask = { cancelled: false, finalized: false };

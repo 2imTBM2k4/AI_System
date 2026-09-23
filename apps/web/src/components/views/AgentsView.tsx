@@ -193,12 +193,18 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ selectedRepoId, onSaved 
 
   const handleDeleteRole = (roleKey: string) => {
     if (!repoConfig) return;
-    const nextAgents = { ...repoConfig.agents };
-    delete nextAgents[roleKey];
-    setRepoConfig({
-      ...repoConfig,
-      agents: nextAgents,
-    });
+    if (window.confirm(`Bạn có chắc chắn muốn xóa Agent "${roleKey}" không?`)) {
+      const nextAgents = { ...repoConfig.agents };
+      delete nextAgents[roleKey];
+      setRepoConfig({
+        ...repoConfig,
+        agents: nextAgents,
+      });
+      setFeedback({
+        type: 'success',
+        message: `Đã xóa Agent "${roleKey}". Vui lòng nhấn "Lưu Cấu Hình Agents" để áp dụng thay đổi vào hệ thống.`,
+      });
+    }
   };
 
   const handleSave = async () => {
@@ -294,10 +300,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ selectedRepoId, onSaved 
     'devops',
     'default',
   ];
-  const customRoleKeys = Object.keys(repoConfig?.agents || {}).filter(
-    (k) => !standardRoles.includes(k) && !['planner', 'tester', 'reviewer'].includes(k)
-  );
-  const allRoleKeys = [...standardRoles, ...customRoleKeys];
+  const allRoleKeys = repoConfig?.agents ? Object.keys(repoConfig.agents) : standardRoles;
 
   const getRoleBadgeVariant = (r: string): 'purple' | 'amber' | 'cyan' | 'emerald' | 'indigo' => {
     switch (r) {
@@ -568,7 +571,6 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ selectedRepoId, onSaved 
               cli: '9router',
               model: 'ag/gemini-3.8-flash',
             };
-            const isStandard = standardRoles.includes(role);
 
             return (
               <div
@@ -604,16 +606,14 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ selectedRepoId, onSaved 
                       <span>Sửa Prompt (.md)</span>
                     </GlassButton>
 
-                    {!isStandard && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRole(role)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Xóa vai trò tùy chỉnh này"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRole(role)}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title={`Xóa Agent vai trò ${role}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

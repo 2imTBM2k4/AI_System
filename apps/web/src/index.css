@@ -2,175 +2,205 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+@theme {
+  /* Perplexity Design Tokens from DESIGN.md */
+  --color-parchment: #faf8f5;
+  --color-soft-paper: #fdfbfa;
+  --color-warm-mist: #d1d1cd;
+  --color-ash: #92918b;
+  --color-graphite: #72706b;
+  --color-ink: #27251e;
+  --color-pure-black: #000000;
+  --color-deep-teal: #016a71;
+
+  --font-pplxsans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+:root {
+  /* Light Theme (Default Perplexity Parchment) */
+  --color-parchment: #faf8f5;
+  --color-soft-paper: #fdfbfa;
+  --color-warm-mist: #d1d1cd;
+  --color-ash: #92918b;
+  --color-graphite: #72706b;
+  --color-ink: #27251e;
+  --color-pure-black: #000000;
+  --color-deep-teal: #016a71;
+  --color-deep-teal-hover: #01565c;
+  --color-deep-teal-glow: rgba(1, 106, 113, 0.18);
+
+  --canvas-bg: #faf8f5;
+  --card-bg: #fdfbfa;
+  --sidebar-bg: #f5f2ec;
+  --card-border: #d1d1cd;
+  --text-primary: #27251e;
+  --text-secondary: #72706b;
+  --text-muted: #92918b;
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dark {
+  /* Dark Theme (Warm Obsidian Slate Paper) */
+  --color-parchment: #181714;
+  --color-soft-paper: #201f1c;
+  --color-warm-mist: #33322d;
+  --color-ash: #828079;
+  --color-graphite: #a39f97;
+  --color-ink: #f0ece1;
+  --color-pure-black: #ffffff;
+  --color-deep-teal: #208b8f;
+  --color-deep-teal-hover: #177376;
+  --color-deep-teal-glow: rgba(32, 139, 143, 0.22);
+
+  --canvas-bg: #181714;
+  --card-bg: #201f1c;
+  --sidebar-bg: #131210;
+  --card-border: #33322d;
+  --text-primary: #f0ece1;
+  --text-secondary: #a39f97;
+  --text-muted: #828079;
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    overflow-x: hidden;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
+    background-color: var(--canvas-bg);
+    color: var(--text-primary);
+    overflow: hidden;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
+
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
 /* ==========================================================================
-   Liquid Glass & Specular Utilities (Light & Dark Adaptive)
+   Perplexity Paper & Clean Glass Surface Utilities
    ========================================================================== */
 
-/* Base liquid glass panel */
-.liquid-glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+/* Elevated Paper Card (16px radius, hairline Warm Mist border, subtle 1px shadow) */
+.paper-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-subtle);
+  color: var(--text-primary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:root.dark .liquid-glass-panel,
-.dark .liquid-glass-panel {
-  background: rgba(18, 18, 24, 0.65);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
-}
-
-/* Glass interactive card */
-.liquid-glass-card {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.liquid-glass-card:hover {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.1),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+.paper-card:hover {
+  border-color: rgba(1, 106, 113, 0.35);
   transform: translateY(-1px);
 }
 
-:root.dark .liquid-glass-card,
-.dark .liquid-glass-card {
-  background: rgba(24, 24, 32, 0.5);
-  border-color: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+.dark .paper-card:hover {
+  border-color: rgba(32, 139, 143, 0.45);
 }
 
-:root.dark .liquid-glass-card:hover,
-.dark .liquid-glass-card:hover {
-  background: rgba(30, 30, 42, 0.65);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-}
-
-/* Liquid Input / Control */
-.liquid-glass-input {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  color: #09090b;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+/* Hero Search / Chat Input Field (12px radius, hairline Warm Mist border, teal glow on focus) */
+.paper-input {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.02);
   transition: all 0.2s ease;
 }
 
-.liquid-glass-input:focus {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+.paper-input:focus-within,
+.paper-input:focus {
+  border-color: var(--color-deep-teal);
+  box-shadow: 0 0 0 3px var(--color-deep-teal-glow);
+  outline: none;
 }
 
-:root.dark .liquid-glass-input,
-.dark .liquid-glass-input {
-  background: rgba(10, 10, 15, 0.6);
-  border-color: rgba(255, 255, 255, 0.09);
-  color: #f4f4f5;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+/* Ghost Button (1px border, 6px radius, Graphite text) */
+.ghost-btn {
+  background-color: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 400;
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
-:root.dark .liquid-glass-input:focus,
-.dark .liquid-glass-input:focus {
-  background: rgba(12, 12, 18, 0.8);
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15),
-              inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+.ghost-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+  background-color: rgba(0, 0, 0, 0.025);
 }
 
-/* Specular borders & glows */
-.specular-border {
-  position: relative;
-}
-.specular-border::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  pointer-events: none;
+.dark .ghost-btn:hover {
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
-:root.dark .specular-border::before,
-.dark .specular-border::before {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+/* Filled Action Button (Ink background, Parchment text, 12px radius) */
+.filled-action-btn {
+  background-color: var(--color-ink);
+  color: var(--color-parchment);
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
-/* Glow effects */
-.glow-indigo {
-  box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.35);
-}
-.glow-emerald {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.35);
-}
-.glow-amber {
-  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.35);
-}
-.glow-rose {
-  box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.35);
+.filled-action-btn:hover {
+  opacity: 0.92;
 }
 
-/* Custom modern acrylic scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Active Nav Item (Deep Teal background, white text, 12px radius) */
+.active-nav-item {
+  background-color: var(--color-deep-teal) !important;
+  color: #ffffff !important;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-:root.dark ::-webkit-scrollbar-track,
-.dark ::-webkit-scrollbar-track {
-  background: rgba(15, 15, 20, 0.5);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
+/* Pill Chip (9999px full pill, 14px text) */
+.pill-chip {
   border-radius: 9999px;
-  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  border: 1px solid var(--card-border);
+  background-color: transparent;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+  cursor: pointer;
 }
 
-:root.dark ::-webkit-scrollbar-thumb,
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+.pill-chip:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+.dark .pill-chip:hover {
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
-:root.dark ::-webkit-scrollbar-thumb:hover,
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+.pill-chip.active {
+  background-color: var(--color-deep-teal);
+  color: #ffffff;
+  border-color: var(--color-deep-teal);
 }
+
+/* Ẩn hoàn toàn thanh cuộn trang web để giữ giao diện phẳng, mượt mà và đồng bộ */
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE / Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+

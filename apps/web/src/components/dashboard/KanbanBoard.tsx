@@ -549,7 +549,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <LogDrawer
           task={selectedLogTask}
           logs={currentLogs}
+          allTasks={Object.values(tasks)}
           runningTasks={runningTasks}
+          mode="fixed"
           onSelectTask={(id) => setActiveLogTaskId(id)}
           onClose={() => setActiveLogTaskId(null)}
         />

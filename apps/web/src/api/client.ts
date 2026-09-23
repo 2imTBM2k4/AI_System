@@ -6,6 +6,7 @@ import type {
   RunResponse,
   RunDetailResponse,
   CancelTaskResponse,
+  RetryTaskResponse,
   MergeResponse,
   PlanDto,
   ProviderConfigDto,
@@ -17,6 +18,8 @@ import type {
   UpdateRepoConfigRequest,
   SquadConfigDto,
   ClarificationResultDto,
+  ChatMode,
+  ChatMessageResponse,
 } from '@squad/shared-types';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -89,6 +92,19 @@ export async function createPlan(repoId: string, goal: string): Promise<PlanResp
   return handleResponse<PlanResponse>(res);
 }
 
+export async function sendChatMessage(
+  repoId: string,
+  message: string,
+  mode: ChatMode = 'auto'
+): Promise<ChatMessageResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, mode }),
+  });
+  return handleResponse<ChatMessageResponse>(res);
+}
+
 export async function startRun(
   repoId: string,
   options: { runId?: string; plan?: PlanDto }
@@ -115,6 +131,14 @@ export async function cancelTask(runId: string, taskId: string): Promise<CancelT
     { method: 'POST' }
   );
   return handleResponse<CancelTaskResponse>(res);
+}
+
+export async function retryTask(runId: string, taskId: string): Promise<RetryTaskResponse> {
+  const res = await fetch(
+    `/runs/${encodeURIComponent(runId)}/tasks/${encodeURIComponent(taskId)}/retry`,
+    { method: 'POST' }
+  );
+  return handleResponse<RetryTaskResponse>(res);
 }
 
 export async function mergeRun(runId: string): Promise<MergeResponse> {

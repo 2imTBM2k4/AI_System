@@ -55,6 +55,14 @@ export class RunsManager {
             return orchestrator.makePlan(repo.path, goal);
         });
     }
+    /** Handles chat message: answers questions directly or plans multi-agent tasks. */
+    async handleChat(repoId, message, mode = 'auto') {
+        const repo = this.requireRepo(repoId);
+        return this.withStore(repo.path, async (store, config) => {
+            const orchestrator = new SquadOrchestrator({ config, store });
+            return orchestrator.chat(repo.path, message, mode);
+        });
+    }
     /**
      * Starts a background run for a repository.
      * Concurrency-safe: rejects overlapping runs on the same repository, but remains
@@ -213,6 +221,60 @@ export class RunsManager {
             throw new RunsManagerError('RUN_NOT_ACTIVE', `Run ${runId} is not currently active.`);
         }
         active.orchestrator.cancelTask(taskId);
+    }
+    /** Retries a failed or skipped task on a run. */
+    async retryTask(runId, taskId) {
+        const active = this.activeRunsById.get(runId);
+        if (active !== undefined) {
+            const task = active.store.getTask(runId, taskId);
+            if (task === undefined) {
+                throw new RunsManagerError('TASK_NOT_FOUND', `Task ${taskId} was not found in run ${runId}.`);
+            }
+            active.orchestrator.retryTask(runId, active.repoPath, taskId).catch(() => { });
+            return { runId, taskId };
+        }
+        // If not currently in memory, find the repository holding this run:
+        for (const repo of this.registry.list()) {
+            const config = await loadSquadConfig(resolve(repo.path, 'squad.config.json'));
+            const paths = resolveSquadPaths(config);
+            const store = await SquadStore.open(paths.dbFile);
+            const run = store.getRun(runId);
+            if (run === undefined) {
+                store.close();
+                continue;
+            }
+            const task = store.getTask(runId, taskId);
+            if (task === undefined) {
+                store.close();
+                throw new RunsManagerError('TASK_NOT_FOUND', `Task ${taskId} was not found in run ${runId}.`);
+            }
+            const orchestrator = new SquadOrchestrator({ config, store });
+            const context = {
+                runId,
+                repoId: repo.id,
+                repoPath: repo.path,
+                orchestrator,
+                store,
+                config,
+                executionPromise: Promise.resolve([]),
+            };
+            this.activeRunsByRepoId.set(repo.id, context);
+            this.activeRunsById.set(runId, context);
+            const executionPromise = orchestrator
+                .retryTask(runId, repo.path, taskId)
+                .catch(() => ({}))
+                .finally(() => {
+                this.activeRunsByRepoId.delete(repo.id);
+                this.activeRunsById.delete(runId);
+                try {
+                    store.close();
+                }
+                catch { }
+            });
+            context.executionPromise = executionPromise;
+            return { runId, taskId };
+        }
+        throw new RunsManagerError('RUN_NOT_FOUND', `Run ${runId} was not found in any registered repository.`);
     }
     /** Executes mergeRun on a finished run, integrating passed task branches. */
     async mergeRun(runId) {

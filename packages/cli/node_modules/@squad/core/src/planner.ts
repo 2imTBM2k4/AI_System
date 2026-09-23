@@ -62,6 +62,53 @@ CHỈ TRẢ VỀ JSON THUẦN:
 {"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh shell, hoặc bỏ trống"}]}`;
 }
 
+/** Builds a consultation prompt for pure Q&A and code explanation without task planning. */
+export function buildConsultationPrompt(cfg: SquadConfig, message: string, overview: RepoOverview): string {
+  const roles = Object.keys(cfg.agents).filter((role) => role !== 'planner' && role !== 'default');
+  return `Bạn là AI Technical Lead & Chuyên gia tư vấn phần mềm cho dự án này.
+
+TỔNG QUAN REPO (${overview.fileCount} files):
+${overview.tree}
+
+ĐỘI NGŨ TÁC NHÂN HIỆN CÓ: ${roles.join(', ')}
+
+CÂU HỎI / YÊU CẦU CỦA NGƯỜI DÙNG:
+"${message}"
+
+NHIỆM VỤ CỦA BẠN:
+- Trả lời, giải thích, tư vấn kỹ thuật hoặc phân tích giải pháp cho người dùng một cách rõ ràng, chi tiết, logic và dễ hiểu.
+- Sử dụng định dạng Markdown chuyên nghiệp (tiêu đề, danh sách, ví dụ code nếu cần).
+- TUYỆT ĐỐI KHÔNG trả về JSON {"tasks":[...]} vì đây là chế độ hỏi đáp / tư vấn, không phải chế độ lập kế hoạch thực thi.`;
+}
+
+/** Builds an intelligent prompt that lets the agent detect intent: Q&A / discussion vs actionable multi-agent task planning. */
+export function buildSmartChatPrompt(cfg: SquadConfig, message: string, overview: RepoOverview): string {
+  const roles = Object.keys(cfg.agents).filter((role) => role !== 'planner' && role !== 'default');
+  const isDirect = (cfg as { executionMode?: string }).executionMode !== 'worktree';
+
+  return `Bạn là Squad AI Orchestrator & Technical Advisor điều phối dự án.
+
+TỔNG QUAN REPO (${overview.fileCount} files):
+${overview.tree}
+
+ROLE CÓ THỂ GIAO VIỆC: ${roles.join(', ')}
+
+TIN NHẮN CỦA NGƯỜI DÙNG:
+"${message}"
+
+HÃY XÁC ĐỊNH Ý ĐỊNH CỦA NGƯỜI DÙNG:
+
+TRƯỜNG HỢP 1: NGƯỜI DÙNG ĐANG HỎI ĐÁP / TƯ VẤN / CHÀO HỎI / GIẢI THÍCH
+(Ví dụ: "Dự án này làm gì?", "Giải thích cấu trúc...", "Có nên dùng PostgreSQL không?", "Làm thế nào để...", "Xin chào", thảo luận kỹ thuật hoặc tìm hiểu mã nguồn)
+-> HÃY TRẢ LỜI TRỰC TIẾP bằng văn bản Markdown chi tiết, hữu ích, dễ hiểu. KHÔNG xuất JSON tasks.
+
+TRƯỜNG HỢP 2: NGƯỜI DÙNG ĐANG RA LỆNH / GIAO NHIỆM VỤ LẬP TRÌNH (CẦN TẠO / SỬA / REFACTOR / TEST CODE TRONG REPO)
+(Ví dụ: "Tạo module auth JWT", "Viết unit tests", "Sửa lỗi crash khi...", "Refactor backend", "Thêm API endpoint...")
+-> HÃY PHÂN RÃ THÀNH 1 ĐẾN 6 TASKS THEO ROADMAP (${isDirect ? 'trực tiếp trên codebase' : 'theo các nhánh git worktree'}):
+CHỈ TRẢ VỀ JSON THUẦN THEO ĐÚNG ĐỊNH DẠNG:
+{"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh shell, hoặc bỏ trống"}]}`;
+}
+
 /** Summarizes tracked files without reading repository contents. */
 export async function repoOverview(repoPath: string): Promise<RepoOverview> {
   const { stdout } = await runGit(repoPath, ['ls-files']);
@@ -184,6 +231,23 @@ export function parsePlanOutput(output: string, goal: string): Plan {
   }
 
   return validatePlan(parsed, goal);
+}
+
+/** Tries to parse a plan from agent output, returning null if it's not a valid plan. */
+export function tryParsePlanOutput(output: string, goal: string): Plan | null {
+  try {
+    return parsePlanOutput(output, goal);
+  } catch {
+    return null;
+  }
+}
+
+/** Strips reasoning tags and trims chat reply text. */
+export function cleanChatReply(text: string): string {
+  return text
+    .replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/<thought[\s\S]*?<\/thought>/gi, '')
+    .trim();
 }
 
 /** Validates a plan document from any source and fills in deterministic branch names. */

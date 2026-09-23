@@ -35,6 +35,18 @@ export declare class SquadOrchestrator extends EventEmitter {
         plan: Plan;
         warnings: FileConflict[];
     }>;
+    /**
+     * Intelligently handles user chat: either answers questions directly in Markdown or plans multi-agent tasks.
+     */
+    chat(repoPath: string, message: string, mode?: 'auto' | 'ask' | 'plan'): Promise<{
+        type: 'answer';
+        reply: string;
+    } | {
+        type: 'plan';
+        runId: string;
+        plan: Plan;
+        warnings: FileConflict[];
+    }>;
     /** Persists a hand-edited plan without invoking the planner agent. */
     createRunFromPlan(repoPath: string, plan: Plan): Promise<{
         runId: string;
@@ -43,6 +55,8 @@ export declare class SquadOrchestrator extends EventEmitter {
     runPlan(repoPath: string, plan: Plan, runId: string): Promise<TaskResult[]>;
     /** Requests cancellation; the close handler owns the single final state transition. */
     cancelTask(taskId: string): void;
+    /** Re-executes a failed or skipped task. */
+    retryTask(runId: string, repoPath: string, taskId: string): Promise<TaskResult>;
     private executeTask;
     private copyConfiguredFiles;
     private runBootstrap;

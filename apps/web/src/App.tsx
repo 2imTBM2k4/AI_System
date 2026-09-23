@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar, type ActiveView } from './components/layout/Sidebar';
 import { PlanningChatView } from './components/views/PlanningChatView';
@@ -15,6 +15,18 @@ import { useSquadEvents } from './hooks/useSquadEvents';
 import { useTheme } from './hooks/useTheme';
 import type { PlanResponse } from '@squad/shared-types';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import {
+  loadAllSessions,
+  saveAllSessions,
+  getActiveSessionId,
+  setActiveSessionId,
+  createNewSession,
+  upsertSession,
+  deleteSession,
+  syncSessionsWithRuns,
+  type ChatSession,
+  type ChatMessage,
+} from './lib/chatStorage';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -36,6 +48,33 @@ export function App() {
   const [currentViewRunId, setCurrentViewRunId] = useState<string | null>(null);
   const [createdPlan, setCreatedPlan] = useState<PlanResponse | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Quản lý Chat Sessions (Lưu trữ và phục hồi lịch sử trò chuyện)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(() => {
+    const local = loadAllSessions();
+    if (local.length > 0) return local;
+    const defaultSess = createNewSession(null);
+    saveAllSessions([defaultSess]);
+    return [defaultSess];
+  });
+
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => {
+    return getActiveSessionId() || null;
+  });
+
+  // Tự động đồng bộ các run từ server vào danh sách chat sessions
+  useEffect(() => {
+    if (runs && runs.length > 0) {
+      setChatSessions(() => {
+        return syncSessionsWithRuns(runs, selectedRepoId);
+      });
+    }
+  }, [runs, selectedRepoId]);
+
+  const activeSession =
+    chatSessions.find((s) => s.id === activeSessionId) ||
+    chatSessions[0] ||
+    null;
 
   // Hook quản lý snapshot + SSE delta cho run đang xem
   const {
@@ -65,6 +104,11 @@ export function App() {
     refreshRuns();
     setCurrentViewRunId(runId);
     refreshRunDetail();
+
+    // Liên kết runId vào activeSession
+    if (activeSession) {
+      handleUpdateSessionMessages(activeSession.messages, undefined, runId);
+    }
   };
 
   const handleSelectRun = (runId: string | null) => {
@@ -74,14 +118,62 @@ export function App() {
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionIdState(sessionId);
+    setActiveSessionId(sessionId);
+    const target = chatSessions.find((s) => s.id === sessionId);
+    if (target?.runId) {
+      setCurrentViewRunId(target.runId);
+      refreshRunDetail();
+    } else {
+      setCurrentViewRunId(null);
+    }
+    setActiveView('chat');
+  };
+
+  const handleNewPlan = () => {
+    const newSess = createNewSession(selectedRepoId);
+    const updated = upsertSession(newSess);
+    setChatSessions(updated);
+    setActiveSessionIdState(newSess.id);
+    setActiveSessionId(newSess.id);
+    setCurrentViewRunId(null);
+    setActiveView('chat');
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    const remaining = deleteSession(sessionId);
+    setChatSessions(remaining);
+    if (activeSessionId === sessionId) {
+      const nextId = remaining[0]?.id || null;
+      setActiveSessionIdState(nextId);
+      if (!nextId) {
+        handleNewPlan();
+      }
+    }
+  };
+
+  const handleUpdateSessionMessages = (
+    messages: ChatMessage[],
+    newTitle?: string,
+    runId?: string
+  ) => {
+    if (!activeSession) return;
+    const updated: ChatSession = {
+      ...activeSession,
+      title: newTitle || activeSession.title,
+      runId: runId !== undefined ? runId : activeSession.runId,
+      messages,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextSessions = upsertSession(updated);
+    setChatSessions(nextSessions);
+  };
+
   const handleViewRun = (runId: string) => {
     setCurrentViewRunId(runId);
     setActiveView('history');
     refreshRunDetail();
-  };
-
-  const handleNewPlan = () => {
-    setActiveView('chat');
   };
 
   const handleTaskCancelled = (taskId: string) => {
@@ -108,7 +200,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-zinc-900 dark:bg-[#07070a] dark:text-zinc-100 flex flex-col font-sans relative selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:bg-indigo-500/40 dark:selection:text-white transition-colors duration-300">
+    <div className="h-full w-full overflow-hidden bg-[var(--canvas-bg)] text-[var(--text-primary)] flex flex-col font-sans relative transition-colors duration-300">
       {/* Liquid Ambient Lighting Mesh */}
       <AmbientBackdrop />
 
@@ -124,7 +216,7 @@ export function App() {
         activeViewTitle={getViewTitle()}
       />
 
-      <div className="flex-1 flex overflow-hidden relative z-10">
+      <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
         {/* Left AI Chat App Sidebar */}
         <Sidebar
           activeView={activeView}
@@ -135,10 +227,14 @@ export function App() {
           onNewPlan={handleNewPlan}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+          chatSessions={chatSessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden flex flex-col relative">
+        <main className="flex-1 overflow-hidden flex flex-col relative min-h-0 bg-[var(--canvas-bg)]">
           {reposError && (
             <div className="p-4 m-4">
               <GlassCard
@@ -172,6 +268,8 @@ export function App() {
                   viewingRun={viewingRun}
                   viewingTasks={viewingTasks}
                   viewingLogs={viewingLogs}
+                  activeSession={activeSession}
+                  onUpdateSessionMessages={handleUpdateSessionMessages}
                   onPlanCreated={handlePlanCreated}
                   onRunStarted={handleRunStarted}
                   onOpenReviewModal={(p) => setCreatedPlan(p)}

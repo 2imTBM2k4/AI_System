@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadSquadConfig, mergeRun, resolveSquadPaths, SquadOrchestrator, SquadStore, validatePlan, ClarificationStage, } from '@squad/core';
 export class RunsManagerError extends Error {
@@ -62,6 +63,25 @@ export class RunsManager {
             const orchestrator = new SquadOrchestrator({ config, store });
             return orchestrator.chat(repo.path, message, mode);
         });
+    }
+    /** Reads text content of a file within the registered repository safely. */
+    async readFileContent(repoId, relPath) {
+        const repo = this.requireRepo(repoId);
+        const cleanRel = relPath.replace(/^[/\\]+/, '');
+        const absPath = resolve(repo.path, cleanRel);
+        const repoRoot = resolve(repo.path);
+        if (!absPath.startsWith(repoRoot)) {
+            throw new RunsManagerError('INVALID_PATH', 'Path traversal is not permitted.');
+        }
+        try {
+            return await readFile(absPath, 'utf8');
+        }
+        catch (err) {
+            if (err?.code === 'ENOENT') {
+                throw new RunsManagerError('FILE_NOT_FOUND', `File ${cleanRel} was not found in repository.`);
+            }
+            throw err;
+        }
     }
     /**
      * Starts a background run for a repository.

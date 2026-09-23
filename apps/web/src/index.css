@@ -204,3 +204,160 @@
   height: 0 !important;
 }
 
+/* ==========================================================================
+   Markdown Rich Preview Styling (DESIGN.md compliant)
+   ========================================================================== */
+.markdown-preview h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-warm-mist);
+}
+
+.markdown-preview h1:first-child {
+  margin-top: 0;
+}
+
+.markdown-preview h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--color-warm-mist);
+}
+
+.markdown-preview h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.markdown-preview h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.markdown-preview p {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.markdown-preview ul, .markdown-preview ol {
+  margin-bottom: 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.markdown-preview ul {
+  list-style-type: disc;
+}
+
+.markdown-preview ol {
+  list-style-type: decimal;
+}
+
+.markdown-preview li {
+  margin-bottom: 0.25rem;
+  line-height: 1.55;
+}
+
+.markdown-preview code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8em;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--color-deep-teal);
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-warm-mist);
+}
+
+.dark .markdown-preview code:not(pre code) {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #2dd4bf;
+}
+
+.markdown-preview pre {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  background-color: #12110f;
+  color: #f5f2ec;
+  border-radius: 12px;
+  border: 1px solid var(--color-warm-mist);
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.8rem;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-warm-mist);
+}
+
+.markdown-preview th {
+  background-color: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-warm-mist);
+}
+
+.dark .markdown-preview th {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.markdown-preview td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-warm-mist);
+}
+
+.markdown-preview tr:nth-child(even) td {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+.dark .markdown-preview tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-preview blockquote {
+  border-left: 3px solid var(--color-deep-teal);
+  background-color: rgba(1, 106, 113, 0.04);
+  padding: 0.5rem 1rem;
+  margin: 0.75rem 0;
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.dark .markdown-preview blockquote {
+  background-color: rgba(32, 139, 143, 0.08);
+}
+
+.markdown-preview hr {
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 1px solid var(--color-warm-mist);
+}
+
+.markdown-preview a {
+  color: var(--color-deep-teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+

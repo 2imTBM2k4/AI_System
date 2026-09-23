@@ -1,7 +1,7 @@
 import { type ClarificationResult, type FileConflict, type MergeReport, type Plan, type RunRecord, type SquadEvent, type TaskRecord } from '@squad/core';
 import { RepoRegistry } from './registry.js';
 export declare class RunsManagerError extends Error {
-    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'TASK_NOT_FOUND' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
+    readonly code: 'REPO_NOT_FOUND' | 'RUN_NOT_FOUND' | 'TASK_NOT_FOUND' | 'FILE_NOT_FOUND' | 'INVALID_PATH' | 'RUN_ALREADY_ACTIVE' | 'RUN_NOT_ACTIVE' | 'TASK_NOT_CANCELLABLE' | 'RUN_STILL_ACTIVE' | 'PLAN_INVALID';
     constructor(code: RunsManagerError['code'], message: string);
 }
 export interface StartRunResult {
@@ -45,6 +45,8 @@ export declare class RunsManager {
         plan: Plan;
         warnings: FileConflict[];
     }>;
+    /** Reads text content of a file within the registered repository safely. */
+    readFileContent(repoId: string, relPath: string): Promise<string>;
     /**
      * Starts a background run for a repository.
      * Concurrency-safe: rejects overlapping runs on the same repository, but remains

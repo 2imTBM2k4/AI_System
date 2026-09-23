@@ -18,13 +18,16 @@ import {
   MessageSquare,
   Workflow,
   RotateCcw,
+  FileText,
+  BookOpen,
 } from 'lucide-react';
 import type { PlanResponse, RunRecordDto, TaskRecordDto, MergeReportDto, ChatMode } from '@squad/shared-types';
-import { startRun, mergeRun, sendChatMessage, retryTask } from '../../api/client';
+import { startRun, mergeRun, sendChatMessage, retryTask, getRepoFile } from '../../api/client';
 import { GlassCard } from '../glass/GlassCard';
 import { GlassBadge } from '../glass/GlassBadge';
 import { GlassButton } from '../glass/GlassButton';
 import { LogDrawer } from '../terminal/LogDrawer';
+import { MarkdownPreviewDrawer } from '../preview/MarkdownPreviewDrawer';
 import { MergeModal } from '../dashboard/MergeModal';
 import type { ChatSession } from '../../lib/chatStorage';
 
@@ -78,6 +81,41 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
 
   // Terminal Log Drawer state
   const [activeLogTask, setActiveLogTask] = useState<TaskRecordDto | null>(null);
+
+  // Markdown Preview Drawer state
+  const [activeMarkdownDoc, setActiveMarkdownDoc] = useState<{
+    title: string;
+    content: string;
+    filePath?: string;
+  } | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<'terminal' | 'markdown'>('markdown');
+  const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null);
+
+  const handleOpenMarkdownPreview = useCallback((title: string, content: string, filePath?: string) => {
+    setActiveMarkdownDoc({ title, content, filePath });
+    setRightPanelTab('markdown');
+  }, []);
+
+  const handleOpenFilePreview = useCallback(
+    async (filePath: string) => {
+      if (!repoId) return;
+      setLoadingFilePath(filePath);
+      try {
+        const res = await getRepoFile(repoId, filePath);
+        setActiveMarkdownDoc({
+          title: filePath.split('/').pop() || filePath,
+          content: res.content,
+          filePath,
+        });
+        setRightPanelTab('markdown');
+      } catch (err: any) {
+        alert(`Không thể đọc file ${filePath}: ${err?.message || 'File không tồn tại'}`);
+      } finally {
+        setLoadingFilePath(null);
+      }
+    },
+    [repoId]
+  );
 
   // Merge state
   const [mergeReport, setMergeReport] = useState<MergeReportDto | null>(null);
@@ -554,8 +592,52 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                   {/* Text content */}
                   {message.text && (
                     <div className="whitespace-pre-wrap font-sans text-xs md:text-sm">
-
                       {message.text}
+                    </div>
+                  )}
+
+                  {/* Actions & File badges for Assistant message */}
+                  {!isUser && message.text && (
+                    <div className="mt-3 pt-2.5 border-t border-[var(--color-warm-mist)]/50 flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenMarkdownPreview('Phản Hồi AI', message.text)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--color-deep-teal)]/10 text-[var(--color-deep-teal)] dark:text-teal-300 hover:bg-[var(--color-deep-teal)]/20 border border-[var(--color-deep-teal)]/25 transition-all cursor-pointer shadow-sm"
+                        title="Mở xem trước định dạng Markdown của phản hồi này ở cột bên phải"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Xem Preview .md bên phải</span>
+                      </button>
+
+                      {/* Các file .md được nhắc đến trong tin nhắn */}
+                      {(() => {
+                        const mdMatches = Array.from(new Set(message.text.match(/\b[\w.-]+\.md\b/gi) || []));
+                        if (mdMatches.length === 0 || !repoId) return null;
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1">
+                              <BookOpen className="w-3 h-3" /> File tài liệu:
+                            </span>
+                            {mdMatches.map((fileName) => (
+                              <button
+                                key={fileName}
+                                type="button"
+                                disabled={loadingFilePath === fileName}
+                                onClick={() => handleOpenFilePreview(fileName)}
+                                className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-black/[0.04] dark:bg-white/[0.06] hover:bg-[var(--color-deep-teal)]/15 hover:text-[var(--color-deep-teal)] border border-[var(--color-warm-mist)] transition-colors cursor-pointer flex items-center gap-1 text-[var(--text-secondary)]"
+                                title={`Nạp và xem trước file ${fileName} từ repository`}
+                              >
+                                {loadingFilePath === fileName ? (
+                                  <Loader2 className="w-3 h-3 animate-spin text-[var(--color-deep-teal)]" />
+                                ) : (
+                                  <FileText className="w-3 h-3 text-[var(--color-deep-teal)]" />
+                                )}
+                                <span>{fileName}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -662,7 +744,10 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                                     setActiveLogTask(null);
                                   } else {
                                     const running = runningTasks[0] || tasksArray[0];
-                                    if (running) setActiveLogTask(running);
+                                    if (running) {
+                                      setActiveLogTask(running);
+                                      setRightPanelTab('terminal');
+                                    }
                                   }
                                 }}
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-normal text-[var(--text-secondary)] hover:text-[var(--color-deep-teal)] hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors cursor-pointer font-mono"
@@ -688,6 +773,8 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                             const logs = viewingLogs[task.id] || [];
                             const latestLog = logs.length > 0 ? logs[logs.length - 1] : null;
                             const isCurrentLogActive = activeLogTask?.id === task.id;
+                            const planTask = (viewingRun || activeRun)?.plan?.tasks.find((pt) => pt.id === task.id);
+                            const taskFiles: string[] = planTask?.files || [];
 
                             return (
                               <div
@@ -723,6 +810,34 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                                       <div className="text-[11px] text-[var(--text-secondary)] font-mono mt-0.5 flex items-center gap-2 flex-wrap">
                                         <span>Nhánh: <code className="bg-black/[0.04] dark:bg-white/[0.06] px-1 py-0.5 rounded text-[10px]">{task.branch}</code></span>
                                       </div>
+
+                                      {/* Files của task */}
+                                      {taskFiles.length > 0 && (
+                                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                                          {taskFiles.map((file) => {
+                                            const isMd = file.toLowerCase().endsWith('.md');
+                                            return isMd ? (
+                                              <button
+                                                key={file}
+                                                type="button"
+                                                onClick={() => handleOpenFilePreview(file)}
+                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--color-deep-teal)]/10 text-[var(--color-deep-teal)] dark:text-teal-300 hover:bg-[var(--color-deep-teal)]/20 border border-[var(--color-deep-teal)]/25 transition-colors cursor-pointer"
+                                                title={`Xem trước file tài liệu ${file} ở cột bên phải`}
+                                              >
+                                                <FileText className="w-2.5 h-2.5" />
+                                                <span>{file}</span>
+                                              </button>
+                                            ) : (
+                                              <span
+                                                key={file}
+                                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-black/[0.03] dark:bg-white/[0.05] text-[var(--text-muted)]"
+                                              >
+                                                {file}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 
@@ -752,7 +867,10 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                                     {/* Nút xem Live Terminal */}
                                     <button
                                       type="button"
-                                      onClick={() => setActiveLogTask(isCurrentLogActive ? null : task)}
+                                      onClick={() => {
+                                        setActiveLogTask(isCurrentLogActive ? null : task);
+                                        setRightPanelTab('terminal');
+                                      }}
                                       className={`p-1 rounded-md transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono ${
                                         isCurrentLogActive
                                           ? 'bg-[var(--color-deep-teal)]/15 text-[var(--color-deep-teal)] dark:text-teal-300 font-medium'
@@ -795,7 +913,10 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                                 {/* Live Terminal log preview snippet */}
                                 {latestLog && (
                                   <div
-                                    onClick={() => setActiveLogTask(task)}
+                                    onClick={() => {
+                                      setActiveLogTask(task);
+                                      setRightPanelTab('terminal');
+                                    }}
                                     className="p-2 rounded-lg bg-[var(--color-ink)] text-[var(--color-parchment)] font-mono text-[11px] truncate flex items-center justify-between gap-2 border border-transparent cursor-pointer hover:border-[var(--color-deep-teal)] transition-colors group"
                                     title="Click để mở terminal bên phải"
                                   >
@@ -1055,7 +1176,7 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
       </div>
 
       {/* Resize Handle Splitter */}
-      {activeLogTask && (
+      {(activeLogTask || activeMarkdownDoc) && (
         <div
           onMouseDown={startResizing}
           className={`w-2 -ml-1 z-30 cursor-col-resize h-full flex items-center justify-center shrink-0 transition-colors select-none group ${
@@ -1063,14 +1184,14 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
               ? 'bg-[var(--color-deep-teal)]'
               : 'hover:bg-[var(--color-deep-teal)]/40 bg-transparent'
           }`}
-          title="Kéo sang trái/phải để tùy ý chỉnh kích thước Terminal Log"
+          title="Kéo sang trái/phải để tùy ý chỉnh kích thước cột bên phải"
         >
           <div className="w-0.5 h-10 rounded-full bg-[var(--color-warm-mist)] group-hover:bg-[var(--color-deep-teal)] transition-colors pointer-events-none" />
         </div>
       )}
 
-      {/* Terminal Log Drawer (docked bên phải giống các nền tảng chat AI hiện đại) */}
-      {activeLogTask && (
+      {/* Terminal Log Drawer (docked bên phải) */}
+      {((rightPanelTab === 'terminal' && activeLogTask) || (Boolean(activeLogTask) && !activeMarkdownDoc)) && activeLogTask && (
         <LogDrawer
           width={terminalWidth}
           task={activeLogTask}
@@ -1081,7 +1202,30 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
             const nextTask = viewingTasks[taskId];
             if (nextTask) setActiveLogTask(nextTask);
           }}
-          onClose={() => setActiveLogTask(null)}
+          onClose={() => {
+            setActiveLogTask(null);
+            if (activeMarkdownDoc) setRightPanelTab('markdown');
+          }}
+          activeTab={rightPanelTab}
+          onTabChange={setRightPanelTab}
+          hasMarkdownDoc={Boolean(activeMarkdownDoc)}
+        />
+      )}
+
+      {/* Markdown Preview Drawer (docked bên phải) */}
+      {((rightPanelTab === 'markdown' && activeMarkdownDoc) || (Boolean(activeMarkdownDoc) && !activeLogTask)) && activeMarkdownDoc && (
+        <MarkdownPreviewDrawer
+          width={terminalWidth}
+          title={activeMarkdownDoc.title}
+          content={activeMarkdownDoc.content}
+          filePath={activeMarkdownDoc.filePath}
+          onClose={() => {
+            setActiveMarkdownDoc(null);
+            if (activeLogTask) setRightPanelTab('terminal');
+          }}
+          activeTab={rightPanelTab}
+          onTabChange={setRightPanelTab}
+          hasTerminalLog={Boolean(activeLogTask)}
         />
       )}
 

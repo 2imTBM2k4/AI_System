@@ -20,6 +20,7 @@ import type {
   ClarificationResultDto,
   ChatMode,
   ChatMessageResponse,
+  FileContentResponse,
 } from '@squad/shared-types';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -231,5 +232,10 @@ export async function saveAgentFile(
     body: JSON.stringify({ content, filePath }),
   });
   return handleResponse<SaveAgentFileResponse>(res);
+}
+
+export async function getRepoFile(repoId: string, path: string): Promise<FileContentResponse> {
+  const res = await fetch(`/repos/${encodeURIComponent(repoId)}/file?path=${encodeURIComponent(path)}`);
+  return handleResponse<FileContentResponse>(res);
 }
 

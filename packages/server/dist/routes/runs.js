@@ -97,6 +97,29 @@ export const registerRunsRoutes = async (app, options) => {
             return handleRouteError(error, reply);
         }
     });
+    // GET /repos/:id/file
+    app.get('/repos/:id/file', {
+        schema: {
+            params: {
+                type: 'object',
+                required: ['id'],
+                properties: { id: { type: 'string', minLength: 1 } },
+            },
+            querystring: {
+                type: 'object',
+                required: ['path'],
+                properties: { path: { type: 'string', minLength: 1 } },
+            },
+        },
+    }, async (request, reply) => {
+        try {
+            const content = await runsManager.readFileContent(request.params.id, request.query.path);
+            return reply.code(200).send({ content, path: request.query.path });
+        }
+        catch (error) {
+            return handleRouteError(error, reply);
+        }
+    });
     // POST /repos/:id/runs
     app.post('/repos/:id/runs', {
         schema: {
@@ -264,6 +287,7 @@ function handleRouteError(error, reply) {
             case 'REPO_NOT_FOUND':
             case 'RUN_NOT_FOUND':
             case 'TASK_NOT_FOUND':
+            case 'FILE_NOT_FOUND':
                 return reply.code(404).send({ error: { code: error.code, message: error.message } });
             case 'RUN_ALREADY_ACTIVE':
             case 'RUN_STILL_ACTIVE':
@@ -271,6 +295,7 @@ function handleRouteError(error, reply) {
             case 'RUN_NOT_ACTIVE':
             case 'TASK_NOT_CANCELLABLE':
             case 'PLAN_INVALID':
+            case 'INVALID_PATH':
                 return reply.code(400).send({ error: { code: error.code, message: error.message } });
         }
     }

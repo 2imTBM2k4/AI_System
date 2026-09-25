@@ -83,4 +83,31 @@ describe('Role Permission Allowlist & Hooks', () => {
       'backend:file_write:deny',
     ]);
   });
+
+  it('fails closed for undefined roles in validateFileAccess and validateCommandAccess', () => {
+    const resDefaultFile = validateFileAccess('default', 'squad.config.json');
+    expect(resDefaultFile.allowed).toBe(false);
+    expect(resDefaultFile.reason).toContain("No permission policy defined for role 'default'. Refusing by default (fail-closed).");
+
+    const resNonexistentFile = validateFileAccess('nonexistent-role', 'anything');
+    expect(resNonexistentFile.allowed).toBe(false);
+    expect(resNonexistentFile.reason).toContain("No permission policy defined for role 'nonexistent-role'. Refusing by default (fail-closed).");
+
+    const resDefaultCmd = validateCommandAccess('default', 'node -e "process.exit(0)"');
+    expect(resDefaultCmd.allowed).toBe(false);
+    expect(resDefaultCmd.reason).toContain("No permission policy defined for role 'default'. Refusing by default (fail-closed).");
+
+    const resNonexistentCmd = validateCommandAccess('nonexistent-role', 'pnpm test');
+    expect(resNonexistentCmd.allowed).toBe(false);
+    expect(resNonexistentCmd.reason).toContain("No permission policy defined for role 'nonexistent-role'. Refusing by default (fail-closed).");
+  });
+
+  it('requires exact command matching and denies prefix matches like gitxyz', () => {
+    const resPrefix = validateCommandAccess('backend', 'gitxyz status', 'restricted');
+    expect(resPrefix.allowed).toBe(false);
+    expect(resPrefix.reason).toContain("Command 'gitxyz' is not permitted for role 'backend'");
+
+    const resExact = validateCommandAccess('backend', 'git status', 'restricted');
+    expect(resExact.allowed).toBe(true);
+  });
 });

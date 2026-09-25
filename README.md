@@ -170,7 +170,6 @@ File `squad.config.json` định nghĩa các thiết lập thực thi và danh s
   "logDir": ".squad/logs",
   "maxParallel": 3,
   "timeoutMinutes": 30,
-  "maxToolCalls": 50,
   "permissionMode": "restricted",
   "requireAcceptanceTest": false,
   "executionMode": "worktree",

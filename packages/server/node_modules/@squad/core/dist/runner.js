@@ -12,6 +12,7 @@ import { SquadStore } from './store.js';
 import { ClarificationStage, TechLeadStage, DevOpsStage } from './stages/index.js';
 import { TaskLockManager } from './lock.js';
 import { HookPipeline } from './hooks.js';
+import { validateFileAccess } from './permissions.js';
 /** Forcefully kills a process and all its descendants to avoid orphaned background tasks. */
 export function killProcessTree(pid) {
     if (!pid || pid <= 0)
@@ -375,6 +376,7 @@ export class SquadOrchestrator extends EventEmitter {
         const startedAt = new Date().toISOString();
         const logChunks = [];
         const isDirect = this.options.config.config.executionMode !== 'worktree';
+        const mode = this.options.config.config.permissionMode ?? 'restricted';
         const targetDir = isDirect ? repoPath : resolve(worktreeRoot, runId, task.id);
         let status = 'error';
         let errorMessage;
@@ -451,7 +453,6 @@ export class SquadOrchestrator extends EventEmitter {
                     const prompt = renderAgentPrompt(agent, taskPromptWithScope);
                     const command = renderAgentCommand(agent, prompt);
                     // Evaluate PreToolUse security hooks on target files
-                    const mode = this.options.config.config.permissionMode ?? 'restricted';
                     let permissionDenied = false;
                     for (const file of task.files) {
                         const fileHook = await this.hooks.executePreHooks({
@@ -584,20 +585,81 @@ export class SquadOrchestrator extends EventEmitter {
                 }
                 if (status === 'passed') {
                     changedFiles = await listChangedFiles(targetDir);
-                    await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
-                    if (!isDirect) {
+                    const violatingFiles = [];
+                    let violationReason = '';
+                    for (const file of changedFiles) {
+                        const check = validateFileAccess(task.role, file, targetDir, mode, task.acceptanceTests ?? []);
+                        if (!check.allowed) {
+                            violatingFiles.push(file);
+                            violationReason = check.reason ?? `Unauthorized file modification in ${file}`;
+                        }
+                    }
+                    if (violatingFiles.length > 0) {
+                        status = 'agent_failed';
+                        errorMessage = `Scope violation: Role '${task.role}' modified unassigned files: ${violatingFiles.join(', ')}`;
+                        const violationMsg = `\n[squad:security] Post-execution scope violation: ${violationReason} (files: ${violatingFiles.join(', ')})\n`;
+                        logChunks.push(violationMsg);
                         try {
-                            await removeWorktree(repoPath, targetDir);
-                            const wtCleanEvt = {
-                                type: 'worktree:cleanup',
-                                runId,
-                                taskId: task.id,
-                                worktreePath: targetDir,
-                            };
-                            this.options.store.appendEvent(wtCleanEvt);
-                            this.emit('worktree:cleanup', wtCleanEvt);
+                            appendFileSync(logPath, violationMsg, 'utf8');
                         }
                         catch { }
+                        const violationEvt = {
+                            type: 'hook:post_violation',
+                            runId,
+                            taskId: task.id,
+                            violatingFiles,
+                            reason: violationReason,
+                        };
+                        this.options.store.appendEvent(violationEvt);
+                        this.emit('hook:post_violation', violationEvt);
+                        if (isDirect) {
+                            try {
+                                await rollbackWorkingTree(targetDir);
+                                const rollbackMsg = `\n[squad:direct] Task ${task.id} violated file scope (${status}). Rolled back working tree to clean state.\n`;
+                                logChunks.push(rollbackMsg);
+                                appendFileSync(logPath, rollbackMsg, 'utf8');
+                                const event = {
+                                    type: 'task:log',
+                                    runId,
+                                    taskId: task.id,
+                                    chunk: rollbackMsg,
+                                };
+                                this.options.store.appendEvent(event);
+                                this.emit('task:log', event);
+                            }
+                            catch { }
+                        }
+                        else {
+                            try {
+                                await removeWorktree(repoPath, targetDir);
+                                const wtCleanEvt = {
+                                    type: 'worktree:cleanup',
+                                    runId,
+                                    taskId: task.id,
+                                    worktreePath: targetDir,
+                                };
+                                this.options.store.appendEvent(wtCleanEvt);
+                                this.emit('worktree:cleanup', wtCleanEvt);
+                            }
+                            catch { }
+                        }
+                    }
+                    else {
+                        await commitAll(targetDir, `squad(${task.id}): ${task.title}`);
+                        if (!isDirect) {
+                            try {
+                                await removeWorktree(repoPath, targetDir);
+                                const wtCleanEvt = {
+                                    type: 'worktree:cleanup',
+                                    runId,
+                                    taskId: task.id,
+                                    worktreePath: targetDir,
+                                };
+                                this.options.store.appendEvent(wtCleanEvt);
+                                this.emit('worktree:cleanup', wtCleanEvt);
+                            }
+                            catch { }
+                        }
                     }
                 }
                 else if (isDirect) {
@@ -783,6 +845,7 @@ export class SquadOrchestrator extends EventEmitter {
                 env: { ...process.env, ...env },
                 shell,
                 windowsHide: true,
+                detached: process.platform !== 'win32',
             });
             // Non-interactive agent CLIs may keep reading stdin even when the prompt is in argv.
             // Close the inherited pipe so they receive EOF instead of waiting for terminal input.

@@ -74,6 +74,7 @@ const taskIdForEvent = (event) => {
         case 'lock:acquired':
         case 'lock:released':
         case 'hook:evaluated':
+        case 'hook:post_violation':
         case 'verify:gate':
             return event.taskId;
         case 'review:start':
@@ -81,6 +82,8 @@ const taskIdForEvent = (event) => {
         case 'review:done':
         case 'run:start':
         case 'run:done':
+            return null;
+        default:
             return null;
     }
 };

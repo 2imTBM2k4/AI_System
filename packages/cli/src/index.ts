@@ -34,7 +34,6 @@ const TEMPLATE: SquadConfig = {
   logDir: '.squad/logs',
   maxParallel: 3,
   timeoutMinutes: 30,
-  maxToolCalls: 50,
   requireAcceptanceTest: false,
   permissionMode: 'restricted',
   executionMode: 'direct',

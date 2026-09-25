@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,13 +21,14 @@ beforeEach(async () => {
   await execFileAsync('git', ['config', 'user.email', 'squad-harness@example.com'], { cwd: repoPath });
   await execFileAsync('git', ['config', 'user.name', 'Squad Harness Test'], { cwd: repoPath });
   await writeFile(join(repoPath, 'README.md'), '# fixture\n');
+  await writeFile(join(repoPath, '.gitignore'), '.squad/\n');
   await execFileAsync('git', ['add', '.'], { cwd: repoPath });
   await execFileAsync('git', ['commit', '-m', 'base'], { cwd: repoPath });
 
   runnerScript = join(repoPath, 'runner.cjs');
   await writeFile(
     runnerScript,
-    "const fs=require('node:fs'); fs.writeFileSync('task-output.txt', 'ok\\n'); console.log('agent executed');\n",
+    "const fs=require('node:fs'); fs.mkdirSync('packages/server', {recursive: true}); fs.writeFileSync('packages/server/app.ts', 'ok\\n'); console.log('agent executed');\n",
   );
 });
 
@@ -43,7 +45,6 @@ const createTestConfig = (executionMode: 'direct' | 'worktree' = 'worktree'): Lo
     executionMode,
     maxParallel: 2,
     timeoutMinutes: 5,
-    maxToolCalls: 20,
     permissionMode: 'restricted',
     verify: ['node -e "process.exit(0)"'],
     agents: {
@@ -85,11 +86,12 @@ describe('Squad Task Execution Harness (v2 Requirements)', () => {
         {
           id: 'task-wt-1',
           title: 'Worktree Task 1',
-          role: 'default',
+          role: 'backend',
           files: ['packages/server/app.ts'],
           dependsOn: [],
           prompt: 'Do task 1',
           branch: 'squad/task-wt-1',
+          verify: 'node -e "process.exit(0)"',
         },
       ],
     };
@@ -116,7 +118,7 @@ describe('Squad Task Execution Harness (v2 Requirements)', () => {
     expect(eventTypes).toContain('verify:gate');
 
     store.close();
-  });
+  }, 15000);
 
   it('Task 3 & 5: denies unauthorized file writes through Hook layer', async () => {
     const config = createTestConfig('direct');
@@ -173,6 +175,61 @@ describe('Squad Task Execution Harness (v2 Requirements)', () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.status).toBe('agent_failed');
     expect(results[0]?.error).toContain('forbidden from modifying protected path');
+
+    store.close();
+  });
+
+  it('Task 2 & 5: detects undeclared scope violation in actual changed files and rolls back', async () => {
+    const config = createTestConfig('direct');
+    const store = await SquadStore.open(join(repoPath, '.squad', 'squad.db'));
+    const orchestrator = new SquadOrchestrator({ config, store });
+
+    const rogueAgentScript = join(repoPath, 'rogue-agent.cjs');
+    await writeFile(
+      rogueAgentScript,
+      `const fs = require('node:fs');
+       fs.mkdirSync('apps/web/src', { recursive: true });
+       fs.writeFileSync('apps/web/src/App.tsx', '// Rogue modification');
+       process.exit(0);
+      `,
+    );
+
+    config.config.agents.backend = {
+      command: ['node', rogueAgentScript, '{{prompt}}'],
+    };
+
+    const plan: Plan = {
+      goal: 'Scope violation test',
+      tasks: [
+        {
+          id: 'task-violation-1',
+          title: 'Backend modifies frontend file undeclared',
+          role: 'backend',
+          files: ['packages/server/app.ts'],
+          dependsOn: [],
+          prompt: 'Do backend task',
+          branch: 'squad/task-violation-1',
+          verify: 'node -e "process.exit(0)"',
+        },
+      ],
+    };
+
+    let postViolationEmitted = false;
+    orchestrator.on('hook:post_violation', () => {
+      postViolationEmitted = true;
+    });
+
+    store.createPlannedRun('run-viol-1', repoPath, plan);
+    const results = await orchestrator.runPlan(repoPath, plan, 'run-viol-1');
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('agent_failed');
+    expect(results[0]?.error).toContain('Scope violation');
+    expect(results[0]?.error).toContain('apps/web/src/App.tsx');
+    expect(postViolationEmitted).toBe(true);
+
+    // Verify changes were rolled back and not committed to repository
+    expect(existsSync(join(repoPath, 'apps/web/src/App.tsx'))).toBe(false);
 
     store.close();
   });

@@ -106,6 +106,7 @@ const writeConfig = async (options: { agentExit?: number; counter?: string; plan
     `${JSON.stringify({
       baseBranch: 'main',
       integrationBranch: 'squad/integration',
+      permissionMode: 'full',
       maxParallel: 1,
       agents: {
         planner: {

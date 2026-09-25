@@ -220,7 +220,7 @@ export async function deleteBranch(repoPath: string, branch: string): Promise<vo
 }
 
 export async function listChangedFiles(repoPath: string): Promise<string[]> {
-  const { stdout } = await runGit(repoPath, ['status', '--porcelain=v1', '-z']);
+  const { stdout } = await runGit(repoPath, ['status', '--porcelain=v1', '-uall', '-z']);
   const entries = stdout.split('\0');
   const changedFiles = new Set<string>();
 
@@ -229,14 +229,14 @@ export async function listChangedFiles(repoPath: string): Promise<string[]> {
     const status = entry.slice(0, 2);
     const filePath = entry.slice(3);
 
-    if (filePath.length > 0) {
+    if (filePath.length > 0 && !filePath.startsWith('.squad/') && !filePath.startsWith('.squad\\') && filePath !== '.squad') {
       changedFiles.add(filePath);
     }
 
     if (status.includes('R') || status.includes('C')) {
       index += 1;
       const originalPath = entries[index];
-      if (originalPath.length > 0) {
+      if (originalPath.length > 0 && !originalPath.startsWith('.squad/') && !originalPath.startsWith('.squad\\') && originalPath !== '.squad') {
         changedFiles.add(originalPath);
       }
     }

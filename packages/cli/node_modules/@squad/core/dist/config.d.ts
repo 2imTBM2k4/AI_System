@@ -102,7 +102,6 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: z.ZodDefault<z.ZodString>;
     maxParallel: z.ZodDefault<z.ZodNumber>;
     timeoutMinutes: z.ZodDefault<z.ZodNumber>;
-    maxToolCalls: z.ZodDefault<z.ZodNumber>;
     requireAcceptanceTest: z.ZodDefault<z.ZodBoolean>;
     permissionMode: z.ZodDefault<z.ZodEnum<["restricted", "full"]>>;
     executionMode: z.ZodDefault<z.ZodEnum<["direct", "worktree"]>>;
@@ -212,7 +211,6 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
-    maxToolCalls: number;
     requireAcceptanceTest: boolean;
     permissionMode: "restricted" | "full";
     executionMode: "direct" | "worktree";
@@ -267,7 +265,6 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
-    maxToolCalls?: number | undefined;
     requireAcceptanceTest?: boolean | undefined;
     permissionMode?: "restricted" | "full" | undefined;
     executionMode?: "direct" | "worktree" | undefined;
@@ -304,7 +301,6 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir: string;
     maxParallel: number;
     timeoutMinutes: number;
-    maxToolCalls: number;
     requireAcceptanceTest: boolean;
     permissionMode: "restricted" | "full";
     executionMode: "direct" | "worktree";
@@ -359,7 +355,6 @@ export declare const SquadConfigSchema: z.ZodEffects<z.ZodObject<{
     logDir?: string | undefined;
     maxParallel?: number | undefined;
     timeoutMinutes?: number | undefined;
-    maxToolCalls?: number | undefined;
     requireAcceptanceTest?: boolean | undefined;
     permissionMode?: "restricted" | "full" | undefined;
     executionMode?: "direct" | "worktree" | undefined;

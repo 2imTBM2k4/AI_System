@@ -120,8 +120,10 @@ export function validateFileAccess(
 
   const policy = DEFAULT_ROLE_POLICIES[role.toLowerCase()];
   if (!policy) {
-    // Unrestricted for unlisted/custom roles
-    return { allowed: true };
+    return {
+      allowed: false,
+      reason: `No permission policy defined for role '${role}'. Refusing by default (fail-closed).`,
+    };
   }
 
   // 1. Check explicit forbidden paths (e.g. read-only acceptance test contracts)
@@ -144,7 +146,16 @@ export function validateFileAccess(
   return { allowed: true };
 }
 
-/** Validates whether an agent with the given role is allowed to run a shell command. */
+/**
+ * Validates whether an agent with the given role is allowed to run a shell command.
+ *
+ * NOTE (Known Limitation):
+ * Validation matches the primary executable binary name against allowedCommands.
+ * It does not parse or restrict command-line arguments (e.g. `node -e` or arbitrary `npx` packages).
+ * Under the single-developer threat model where LLM agents are non-adversarial coding assistants
+ * rather than malicious attackers, this boundary is accepted as sufficient without requiring
+ * heavy container isolation or specialized argument classifiers.
+ */
 export function validateCommandAccess(
   role: string,
   commandLine: string,
@@ -160,18 +171,26 @@ export function validateCommandAccess(
   }
 
   const policy = DEFAULT_ROLE_POLICIES[role.toLowerCase()];
-  if (!policy || !policy.allowedCommands || policy.allowedCommands.length === 0) {
-    return { allowed: true };
+  if (!policy) {
+    return {
+      allowed: false,
+      reason: `No permission policy defined for role '${role}'. Refusing by default (fail-closed).`,
+    };
+  }
+  if (!policy.allowedCommands || policy.allowedCommands.length === 0) {
+    return {
+      allowed: false,
+      reason: `No allowed commands configured for role '${role}'.`,
+    };
   }
 
   // Extract base command (first token, stripped of quotes/path)
   const firstToken = trimmed.split(/\s+/)[0] || '';
   const baseCmd = firstToken.replace(/^["']|["']$/g, '').split(/[\\/]/).pop()?.toLowerCase() || '';
 
-  const isAllowed = policy.allowedCommands.some((allowed) => {
-    const cleanAllowed = allowed.toLowerCase();
-    return baseCmd === cleanAllowed || baseCmd.startsWith(cleanAllowed);
-  });
+  const isAllowed = policy.allowedCommands.some(
+    (allowed) => baseCmd === allowed.toLowerCase(),
+  );
 
   if (!isAllowed) {
     return {

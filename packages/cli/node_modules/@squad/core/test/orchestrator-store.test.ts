@@ -71,6 +71,7 @@ const loadedConfig = (): LoadedSquadConfig => ({
 
 const runnerConfig = (maxParallel: number, verify: string[] = [], timeline?: string): LoadedSquadConfig => ({
   config: parseSquadConfig({
+    permissionMode: 'full',
     maxParallel,
     verify,
     agents: {

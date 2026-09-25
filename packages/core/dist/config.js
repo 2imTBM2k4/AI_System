@@ -83,7 +83,6 @@ export const SquadConfigSchema = z
     logDir: z.string().default('.squad/logs'),
     maxParallel: z.number().int().min(1).max(10).default(3),
     timeoutMinutes: z.number().int().min(1).default(30),
-    maxToolCalls: z.number().int().min(1).default(50),
     requireAcceptanceTest: z.boolean().default(false),
     permissionMode: z.enum(['restricted', 'full']).default('restricted'),
     executionMode: z.enum(['direct', 'worktree']).default('worktree'),

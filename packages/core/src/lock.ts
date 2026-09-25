@@ -53,6 +53,9 @@ export class TaskLockManager {
    * Returns true if lock was acquired, false if held by an active process.
    */
   async acquire(taskId: string): Promise<boolean> {
+    if (!existsSync(this.lockDir)) {
+      mkdirSync(this.lockDir, { recursive: true });
+    }
     const lockPath = this.getLockFilePath(taskId);
 
     if (existsSync(lockPath)) {

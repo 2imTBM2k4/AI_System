@@ -75,6 +75,13 @@ export type SquadEvent =
       decision: 'allow' | 'deny';
       reason?: string;
     }
+  | {
+      type: 'hook:post_violation';
+      runId: string;
+      taskId: string;
+      violatingFiles: string[];
+      reason: string;
+    }
   | { type: 'verify:gate'; runId: string; taskId: string; status: 'passed' | 'failed'; error?: string }
   | { type: 'review:start'; runId: string; round: number }
   | { type: 'review:log'; runId: string; round: number; chunk: string }

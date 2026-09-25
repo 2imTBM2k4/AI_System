@@ -63,6 +63,7 @@ beforeEach(async () => {
     JSON.stringify({
       baseBranch: 'main',
       integrationBranch: 'squad/integration',
+      permissionMode: 'full',
       agents: {
         default: { command: [process.execPath, agentScript] },
         planner: { command: [process.execPath, plannerScript] },

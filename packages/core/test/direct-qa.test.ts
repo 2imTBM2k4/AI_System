@@ -75,6 +75,7 @@ afterEach(async () => {
 const directQaConfig = (maxReviewRounds = 2): LoadedSquadConfig => ({
   config: parseSquadConfig({
     executionMode: 'direct',
+    permissionMode: 'full',
     maxReviewRounds,
     agents: {
       default: {
@@ -142,6 +143,74 @@ describe('Direct Workspace Execution and Lead QA Review Loop', () => {
     const { stdout: gitLog } = await execFileAsync('git', ['log', '--oneline'], { cwd: repoPath });
     expect(gitLog).toContain('squad(t1): Create initial feature');
     expect(gitLog).toContain('squad(fix-1): Fix Feature');
+
+    store.close();
+  });
+
+  it('denies fix tasks lacking a role under restricted permission mode (fail-closed)', async () => {
+    const store = await SquadStore.open(':memory:');
+    const restrictedConfig: LoadedSquadConfig = {
+      config: parseSquadConfig({
+        executionMode: 'direct',
+        permissionMode: 'restricted',
+        maxReviewRounds: 1,
+        agents: {
+          default: {
+            command: [process.execPath, runnerScript, '{{prompt}}'],
+          },
+          backend: {
+            command: [process.execPath, runnerScript, '{{prompt}}'],
+          },
+          reviewer: {
+            command: [process.execPath, reviewerScript, '{{prompt}}'],
+          },
+        },
+      }),
+      configPath: join(repoPath, 'squad.config.json'),
+      configDirectory: repoPath,
+    };
+    const orchestrator = new SquadOrchestrator({ config: restrictedConfig, store });
+
+    const badReviewerScript = join(repoPath, 'bad-reviewer.cjs');
+    await writeFile(
+      badReviewerScript,
+      `console.log(JSON.stringify({
+        status: 'needs_fix',
+        summary: 'Fix needed',
+        fixTasks: [{
+          id: 'fix-no-role',
+          title: 'Fix Without Role',
+          files: ['squad.config.json'],
+          prompt: 'ATTEMPT_WRITE'
+        }]
+      }));`,
+    );
+    restrictedConfig.config.agents.reviewer = {
+      command: [process.execPath, badReviewerScript, '{{prompt}}'],
+    };
+
+    const initialPlan: Plan = {
+      goal: 'Initial feature',
+      tasks: [
+        {
+          id: 't-init',
+          title: 'Initial feature',
+          role: 'backend',
+          files: ['packages/server/src/init.ts'],
+          dependsOn: [],
+          prompt: 'INIT',
+          branch: 'squad/t-init',
+        },
+      ],
+    };
+
+    store.createPlannedRun('direct-run-fail-closed', repoPath, initialPlan);
+    const results = await orchestrator.runPlan(repoPath, initialPlan, 'direct-run-fail-closed');
+
+    const fixResult = results.find((r) => r.id === 'fix-no-role');
+    expect(fixResult).toBeDefined();
+    expect(fixResult?.status).toBe('agent_failed');
+    expect(fixResult?.error).toContain("No permission policy defined for role 'default'");
 
     store.close();
   });

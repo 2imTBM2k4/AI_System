@@ -281,7 +281,6 @@ export interface SquadConfigDto {
   logDir?: string;
   maxParallel: number;
   timeoutMinutes: number;
-  maxToolCalls?: number;
   requireAcceptanceTest?: boolean;
   permissionMode?: 'restricted' | 'full';
   executionMode?: 'direct' | 'worktree';

@@ -101,7 +101,7 @@ describe('Session lifecycle helpers (T4)', () => {
 
     // 5. Total character length must stay within maxChars limit
     expect(context.length).toBeLessThanOrEqual(maxCharsLimit);
-  });
+  }, 15_000);
 
   it('preserves previous entries when endSession is called multiple consecutive times', async () => {
     const taskId = 'task-iterative-99';

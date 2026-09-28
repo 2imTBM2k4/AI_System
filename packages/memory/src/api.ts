@@ -66,16 +66,24 @@ export function getMemoryDir(overrideDir?: string): string {
 }
 
 /**
- * Infers MemoryScope from relative file path convention.
+ * Infers MemoryScope from relative file path convention:
+ * - 'tasks/...' -> 'task'
+ * - 'roles/...' -> 'role'
+ * - 'index.md' or 'decisions/...' -> 'project'
+ * Throws an error for non-standard paths if no explicit scope is provided.
  *
  * @param relPath - Relative file path.
- * @returns Inferred MemoryScope ('task' | 'role' | 'project').
+ * @returns Inferred MemoryScope.
+ * @throws Error if path cannot be mapped to a standard scope.
  */
 export function inferScopeFromRelPath(relPath: string): MemoryScope {
   const normalized = relPath.replace(/\\/g, '/').toLowerCase();
   if (normalized.startsWith('tasks/')) return 'task';
   if (normalized.startsWith('roles/')) return 'role';
-  return 'project';
+  if (normalized === 'index.md' || normalized.startsWith('decisions/')) return 'project';
+  throw new Error(
+    `Cannot infer memory scope for non-standard path '${relPath}'. Please provide explicit 'scope' metadata ('project' | 'role' | 'task').`
+  );
 }
 
 /**

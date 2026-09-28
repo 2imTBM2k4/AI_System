@@ -131,14 +131,14 @@ describe('Memory API (T3)', () => {
 
   it('deletes memory file idempotently without error when file does not exist', async () => {
     // Should not throw on non-existent file
-    await expect(deleteMemory('non-existent-to-delete.md', { memoryDir })).resolves.not.toThrow();
+    await expect(deleteMemory('decisions/non-existent.md', { memoryDir })).resolves.not.toThrow();
 
     // Create and delete
-    await appendMemory('temp.md', 'To be deleted', { updatedBy: 'agent' }, { memoryDir });
-    expect(await readMemory('temp.md', { memoryDir })).not.toBeNull();
+    await appendMemory('decisions/temp.md', 'To be deleted', { updatedBy: 'agent' }, { memoryDir });
+    expect(await readMemory('decisions/temp.md', { memoryDir })).not.toBeNull();
 
-    await deleteMemory('temp.md', { memoryDir });
-    expect(await readMemory('temp.md', { memoryDir })).toBeNull();
+    await deleteMemory('decisions/temp.md', { memoryDir });
+    expect(await readMemory('decisions/temp.md', { memoryDir })).toBeNull();
   });
 
   it('supports 10 real OS processes concurrently appending 20 lines each to the same file resulting in 200 clean lines', async () => {
@@ -191,4 +191,22 @@ describe('Memory API (T3)', () => {
       }
     }
   }, 45000);
+
+  it('requires explicit scope for non-standard paths and rejects missing scope per Decision (d)', async () => {
+    // Fails when scope is omitted on arbitrary path
+    await expect(
+      appendMemory('custom/random.md', 'Some fact', { updatedBy: 'agent' }, { memoryDir })
+    ).rejects.toThrowError(/Cannot infer memory scope for non-standard path 'custom\/random\.md'/);
+
+    // Succeeds when explicit scope is provided
+    await appendMemory(
+      'custom/random.md',
+      'Some fact',
+      { updatedBy: 'agent', scope: 'project' },
+      { memoryDir }
+    );
+    const doc = await readMemory('custom/random.md', { memoryDir });
+    expect(doc).not.toBeNull();
+    expect(doc!.frontmatter.scope).toBe('project');
+  });
 });

@@ -193,13 +193,19 @@ export async function withFileLock<T>(
       acquired = true;
       break;
     } catch (err: any) {
-      // On Windows, STATUS_DELETE_PENDING or simultaneous file sharing contention
-      // manifests as EPERM or EACCES. Treat them as contention and retry.
-      const isContention =
-        err.code === 'EEXIST' ||
-        err.code === 'EPERM' ||
-        err.code === 'EACCES' ||
-        err.code === 'EBUSY';
+      // Decision (a) Option 3: Treat EPERM/EACCES as lock contention ONLY if the lock file exists
+      // (mitigates Windows NTFS delete-pending / file sharing collision), otherwise throw immediately
+      const isWindows = process.platform === 'win32';
+      const isPermError = err.code === 'EPERM' || err.code === 'EACCES';
+      let isContention = err.code === 'EEXIST' || err.code === 'EBUSY';
+
+      if (isWindows && isPermError) {
+        if (existsSync(lockPath)) {
+          isContention = true;
+        } else {
+          throw err;
+        }
+      }
 
       if (!isContention) {
         if (err.code === 'ENOENT') {

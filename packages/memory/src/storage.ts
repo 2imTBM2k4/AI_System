@@ -74,6 +74,12 @@ export function resolveSafePath(root: string, relPath: string): string {
   // Check symlinks for existing file or existing parent directories
   let probe = targetPath;
   while (probe && probe !== path.dirname(probe)) {
+    // Do not climb above resolvedRoot into parent directories
+    const relToProbe = path.relative(resolvedRoot, probe);
+    if (relToProbe.startsWith('..') || path.isAbsolute(relToProbe)) {
+      break;
+    }
+
     if (existsSync(probe)) {
       try {
         const realProbe = realpathSync(probe);
@@ -87,6 +93,11 @@ export function resolveSafePath(root: string, relPath: string): string {
       }
       break;
     }
+
+    if (probe === resolvedRoot) {
+      break;
+    }
+
     probe = path.dirname(probe);
   }
 

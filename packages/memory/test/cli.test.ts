@@ -78,7 +78,7 @@ describe('CLI squad-mem (T5)', () => {
     const res = await execCli(['append', 'tasks/test.md', 'Some fact'], { memoryDir });
 
     expect(res.code).not.toBe(0);
-    expect(res.stderr).toContain("error: required option '--by <agent>' not specified");
+    expect(res.stderr).toMatch(/(Missing required argument: --by|error: required option)/);
   });
 
   it('writes and reads Vietnamese UTF-8 content via write --stdin', async () => {

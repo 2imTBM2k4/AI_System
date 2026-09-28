@@ -50,8 +50,27 @@ pnpm -F @squad/memory build
 pnpm -F @squad/memory test
 ```
 
-Biến môi trường tùy chọn:
-- `SQUAD_MEMORY_DIR`: Đường dẫn tuyệt đối hoặc tương đối tới thư mục lưu trữ memory (mặc định `.squad/memory/`).
+### Biến môi trường & Thứ tự ưu tiên (Environment Variables & Precedence)
+
+Hệ thống hỗ trợ tự động nạp ngữ cảnh từ các biến môi trường được inject bởi orchestrator:
+
+| Biến môi trường | Mục đích & Cờ CLI tương ứng | Quy tắc kiểm tra & Ràng buộc |
+| :--- | :--- | :--- |
+| `SQUAD_MEMORY_DIR` | Thư mục gốc memory chung của squad | **Bắt buộc là đường dẫn tuyệt đối**. Nghiêm cấm đường dẫn tương đối vì `cwd` khác nhau giữa các git worktree. Hỗ trợ đường dẫn có khoảng trắng và ký tự tiếng Việt UTF-8. Mặc định khi chưa đặt: `path.resolve(process.cwd(), '.squad/memory')`. |
+| `SQUAD_RUN_ID` | Mặc định cho cờ `--task` (`start`, `end`) | Phải qua `validateIdentifier` (`[A-Za-z0-9_-]`, max 64 ký tự). **Biến rỗng hoặc chỉ chứa khoảng trắng coi như chưa đặt**. Cờ `--task` truyền tay luôn được phép ghi đè. |
+| `SQUAD_ROLE` | Mặc định cho `--role` (`start`, `end`) và `--by` (`append`, `write`, `delete`) | Phải qua `validateIdentifier`. **Biến rỗng coi như chưa đặt**. Áp dụng **Quy tắc ép vai trò (Role Lock-in)**. |
+
+#### Thứ tự ưu tiên (Precedence Order)
+1. **Cờ truyền tay tường minh** (với `--task` được ghi đè tự do; với `--by` / `--role` phải tuân theo quy tắc ép vai trò).
+2. **Biến môi trường tương ứng** (`SQUAD_RUN_ID`, `SQUAD_ROLE`, `SQUAD_MEMORY_DIR`).
+3. **Báo lỗi thiếu tham số** (nếu không có cả cờ truyền tay lẫn biến môi trường, trả về exit code 1 kèm thông báo rõ ràng).
+
+#### Quy tắc ép vai trò (Role Lock-in)
+- Khi `SQUAD_ROLE` có giá trị trong môi trường (ví dụ `SQUAD_ROLE=backend`):
+  - Nếu truyền cờ `--by` hoặc `--role` KHÁC `SQUAD_ROLE` (so sánh không phân biệt hoa thường) $\rightarrow$ Từ chối thực thi, exit code 1, stderr nêu rõ giá trị nhận được và giá trị của `SQUAD_ROLE`.
+  - Nếu truyền cờ `--by` hoặc `--role` TRÙNG `SQUAD_ROLE` $\rightarrow$ Hợp lệ và tiếp tục.
+  - Nếu không truyền cờ $\rightarrow$ Tự động sử dụng giá trị của `SQUAD_ROLE`.
+- Khi `SQUAD_ROLE` không có giá trị hoặc rỗng: Hệ thống hoạt động theo tham số truyền tay như bình thường.
 
 ---
 

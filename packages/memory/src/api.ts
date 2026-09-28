@@ -194,20 +194,41 @@ export interface SearchResult {
 }
 
 /**
+ * Resolves an environment variable identifier (e.g. SQUAD_RUN_ID, SQUAD_ROLE).
+ * Treats empty or whitespace-only values as unset (returns undefined).
+ * Validates non-empty values against identifier whitelist, throwing an error naming the variable if invalid.
+ */
+export function resolveEnvIdentifier(envName: 'SQUAD_RUN_ID' | 'SQUAD_ROLE'): string | undefined {
+  const val = process.env[envName];
+  if (!val || val.trim().length === 0) {
+    return undefined;
+  }
+  return validateIdentifier(val.trim(), `Environment variable ${envName}`);
+}
+
+/**
  * Gets the root memory directory, resolving in order:
  * 1. Explicit override argument
- * 2. Process environment variable SQUAD_MEMORY_DIR
+ * 2. Process environment variable SQUAD_MEMORY_DIR (strictly required to be an absolute path)
  * 3. Default fallback: path.resolve(process.cwd(), '.squad/memory')
  *
  * @param overrideDir - Optional custom directory path.
  * @returns Absolute path to memory root directory.
+ * @throws Error if SQUAD_MEMORY_DIR is provided as a relative path.
  */
 export function getMemoryDir(overrideDir?: string): string {
   if (overrideDir && overrideDir.trim().length > 0) {
     return path.resolve(overrideDir);
   }
-  if (process.env.SQUAD_MEMORY_DIR && process.env.SQUAD_MEMORY_DIR.trim().length > 0) {
-    return path.resolve(process.env.SQUAD_MEMORY_DIR.trim());
+  const envDir = process.env.SQUAD_MEMORY_DIR;
+  if (envDir && envDir.trim().length > 0) {
+    const trimmed = envDir.trim();
+    if (!path.isAbsolute(trimmed)) {
+      throw new Error(
+        `Environment variable SQUAD_MEMORY_DIR must be an absolute path (received relative path "${trimmed}"). Relative paths are forbidden because working directories (cwd) differ across worktrees.`
+      );
+    }
+    return path.resolve(trimmed);
   }
   return path.resolve(process.cwd(), '.squad/memory');
 }

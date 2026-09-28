@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { readMemory, writeMemory, appendMemory, listMemories, searchMemory, deleteMemory } from './api.js';
+import {
+  readMemory,
+  writeMemory,
+  appendMemory,
+  listMemories,
+  searchMemory,
+  deleteMemory,
+  resolveEnvIdentifier,
+} from './api.js';
 import { parseMemory, serializeMemory } from './parser.js';
 import { startSession, endSession } from './session.js';
 import { MemoryScope } from './types.js';
@@ -12,6 +20,60 @@ program
   .name('squad-mem')
   .description('Shared file-based memory CLI for AI squad agents')
   .version('0.1.0');
+
+/**
+ * Resolves role or agent identity from explicit flag or SQUAD_ROLE environment variable.
+ * Enforces role lock-in: if SQUAD_ROLE is set, any explicit flag must match SQUAD_ROLE (case-insensitive).
+ */
+function resolveRoleOrBy(
+  explicitVal: string | undefined,
+  flagName: '--by' | '--role'
+): string {
+  if (explicitVal !== undefined) {
+    if (explicitVal.trim().length === 0) {
+      process.stderr.write(`Error: ${flagName} cannot be empty\n`);
+      process.exit(1);
+    }
+    const envRole = resolveEnvIdentifier('SQUAD_ROLE');
+    if (envRole) {
+      if (explicitVal.trim().toLowerCase() !== envRole.toLowerCase()) {
+        process.stderr.write(
+          `Permission denied: provided ${flagName} "${explicitVal}" does not match environment SQUAD_ROLE "${envRole}".\n`
+        );
+        process.exit(1);
+      }
+    }
+    return explicitVal.trim();
+  }
+
+  const envRole = resolveEnvIdentifier('SQUAD_ROLE');
+  if (envRole) {
+    return envRole;
+  }
+
+  process.stderr.write(
+    `Missing required argument: ${flagName} (or SQUAD_ROLE environment variable)\n`
+  );
+  process.exit(1);
+}
+
+/**
+ * Resolves taskId from explicit flag or SQUAD_RUN_ID environment variable.
+ * Explicit --task overrides SQUAD_RUN_ID.
+ */
+function resolveTaskId(explicitTask: string | undefined): string {
+  if (explicitTask !== undefined && explicitTask.trim().length > 0) {
+    return explicitTask.trim();
+  }
+  const envRunId = resolveEnvIdentifier('SQUAD_RUN_ID');
+  if (envRunId) {
+    return envRunId;
+  }
+  process.stderr.write(
+    'Missing required argument: --task (or SQUAD_RUN_ID environment variable)\n'
+  );
+  process.exit(1);
+}
 
 // 1. squad-mem read <path>
 program
@@ -31,22 +93,20 @@ program
     }
   });
 
-// 2. squad-mem write <path> --stdin --by <agent>
+// 2. squad-mem write <path> --stdin [--by <agent>]
 program
   .command('write <path>')
   .description('Write a memory document from stdin')
   .option('--stdin', 'Read content from stdin')
-  .requiredOption('--by <agent>', 'Agent or persona writing the document')
-  .action(async (relPath: string, opts: { stdin?: boolean; by: string }) => {
+  .option('--by <agent>', 'Agent or persona writing the document (defaults to SQUAD_ROLE)')
+  .action(async (relPath: string, opts: { stdin?: boolean; by?: string }) => {
     try {
       if (!opts.stdin) {
         process.stderr.write("Missing '--stdin' flag for write command\n");
         process.exit(1);
       }
-      if (!opts.by || opts.by.trim().length === 0) {
-        process.stderr.write('Error writing memory: --by cannot be empty\n');
-        process.exit(1);
-      }
+
+      const by = resolveRoleOrBy(opts.by, '--by');
 
       const chunks: Buffer[] = [];
       for await (const chunk of process.stdin) {
@@ -59,8 +119,8 @@ program
       }
 
       const doc = parseMemory(raw, relPath);
-      doc.frontmatter.updatedBy = opts.by;
-      await writeMemory(relPath, doc, { by: opts.by });
+      doc.frontmatter.updatedBy = by;
+      await writeMemory(relPath, doc, { by });
     } catch (err: any) {
       if (err.message === 'index.md is read-only for agents; edit it manually') {
         process.stderr.write(`${err.message}\n`);
@@ -71,22 +131,20 @@ program
     }
   });
 
-// 3. squad-mem append <path> "<line>" --by <agent>
+// 3. squad-mem append <path> "<line>" [--by <agent>]
 program
   .command('append <path> <line>')
   .description('Append a fact or note to a memory document')
-  .requiredOption('--by <agent>', 'Agent or persona appending the entry')
+  .option('--by <agent>', 'Agent or persona appending the entry (defaults to SQUAD_ROLE)')
   .option('--name <name>', 'Document name (if creating new file)')
   .option('--description <desc>', 'Document description (if creating new file)')
   .option('--scope <scope>', 'Memory scope: project, role, task')
-  .action(async (relPath: string, line: string, opts: { by: string; name?: string; description?: string; scope?: string }) => {
+  .action(async (relPath: string, line: string, opts: { by?: string; name?: string; description?: string; scope?: string }) => {
     try {
-      if (!opts.by || opts.by.trim().length === 0) {
-        process.stderr.write('Error appending memory: --by cannot be empty\n');
-        process.exit(1);
-      }
+      const by = resolveRoleOrBy(opts.by, '--by');
+
       await appendMemory(relPath, line, {
-        updatedBy: opts.by,
+        updatedBy: by,
         name: opts.name,
         description: opts.description,
         scope: opts.scope as MemoryScope | undefined,
@@ -105,10 +163,28 @@ program
 program
   .command('delete <path>')
   .description('Delete a memory document')
-  .option('--by <agent>', 'Agent or persona deleting the document')
+  .option('--by <agent>', 'Agent or persona deleting the document (defaults to SQUAD_ROLE)')
   .action(async (relPath: string, opts: { by?: string }) => {
     try {
-      await deleteMemory(relPath, { by: opts.by });
+      let by: string | undefined;
+      const envRole = resolveEnvIdentifier('SQUAD_ROLE');
+      if (envRole) {
+        if (opts.by !== undefined) {
+          if (opts.by.trim().toLowerCase() !== envRole.toLowerCase()) {
+            process.stderr.write(
+              `Permission denied: provided --by "${opts.by}" does not match environment SQUAD_ROLE "${envRole}".\n`
+            );
+            process.exit(1);
+          }
+          by = opts.by.trim();
+        } else {
+          by = envRole;
+        }
+      } else {
+        by = opts.by;
+      }
+
+      await deleteMemory(relPath, { by });
     } catch (err: any) {
       if (err.message === 'index.md is read-only for agents; edit it manually') {
         process.stderr.write(`${err.message}\n`);
@@ -160,18 +236,21 @@ function parseMaxChars(val: string): number {
   return num;
 }
 
-// 6. squad-mem start --task <id> --role <r> [--max-chars <n>]
+// 6. squad-mem start [--task <id>] [--role <r>] [--max-chars <n>]
 program
   .command('start')
   .description('Start a task session and output concatenated memory context')
-  .requiredOption('--task <taskId>', 'Task identifier')
-  .requiredOption('--role <role>', 'Agent role')
+  .option('--task <taskId>', 'Task identifier (defaults to SQUAD_RUN_ID)')
+  .option('--role <role>', 'Agent role (defaults to SQUAD_ROLE)')
   .option('--max-chars <n>', 'Maximum character length', parseMaxChars, 8000)
-  .action(async (opts: { task: string; role: string; maxChars: number }) => {
+  .action(async (opts: { task?: string; role?: string; maxChars: number }) => {
     try {
+      const role = resolveRoleOrBy(opts.role, '--role');
+      const taskId = resolveTaskId(opts.task);
+
       const context = await startSession({
-        taskId: opts.task,
-        role: opts.role,
+        taskId,
+        role,
         maxChars: opts.maxChars,
       });
       process.stdout.write(context + '\n');
@@ -181,19 +260,22 @@ program
     }
   });
 
-// 7. squad-mem end --task <id> --role <r> --done "..." --remaining "..."
+// 7. squad-mem end [--task <id>] [--role <r>] --done "..." --remaining "..."
 program
   .command('end')
   .description('End a task session and log completed/remaining items')
-  .requiredOption('--task <taskId>', 'Task identifier')
-  .requiredOption('--role <role>', 'Agent role')
+  .option('--task <taskId>', 'Task identifier (defaults to SQUAD_RUN_ID)')
+  .option('--role <role>', 'Agent role (defaults to SQUAD_ROLE)')
   .requiredOption('--done <text>', 'What was completed')
   .requiredOption('--remaining <text>', 'What remains to be done')
-  .action(async (opts: { task: string; role: string; done: string; remaining: string }) => {
+  .action(async (opts: { task?: string; role?: string; done: string; remaining: string }) => {
     try {
+      const role = resolveRoleOrBy(opts.role, '--role');
+      const taskId = resolveTaskId(opts.task);
+
       await endSession({
-        taskId: opts.task,
-        role: opts.role,
+        taskId,
+        role,
         done: opts.done,
         remaining: opts.remaining,
       });

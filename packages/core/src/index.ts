@@ -4,6 +4,7 @@ export {
   CLI_PRESETS,
   ConfigError,
   getAgentPromptCandidates,
+  getCanonicalRole,
   loadSquadConfig,
   parseFrontmatter,
   parseSquadConfig,
@@ -11,12 +12,18 @@ export {
   renderAgentPrompt,
   resolveAgent,
   resolveSquadPaths,
+  ROLE_ALIASES,
   type LoadedSquadConfig,
   type ResolvedAgent,
   type ResolvedSquadPaths,
   type SquadConfig,
   SquadConfigSchema,
 } from './config.js';
+export {
+  ensureMemoryShim,
+  injectMemoryEnv,
+  resolveMemoryCliPath,
+} from './memory.js';
 export {
   abortMerge,
   cleanupOrphanWorktrees,

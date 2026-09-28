@@ -50,22 +50,22 @@ export const DEFAULT_ROLE_POLICIES: Record<string, RolePermissionPolicy> = {
   backend: {
     paths: ['packages/server/**', 'packages/shared-types/**'],
     forbiddenPaths: ['**/*.acceptance.test.*'],
-    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'tsc', 'fastify'],
+    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'tsc', 'fastify', 'squad-mem'],
   },
   frontend: {
     paths: ['apps/web/**', 'packages/shared-types/**'],
     forbiddenPaths: ['**/*.acceptance.test.*'],
-    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'tsc', 'vite'],
+    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'tsc', 'vite', 'squad-mem'],
   },
   mobile: {
     paths: ['apps/mobile/**', 'packages/shared-types/**'],
     forbiddenPaths: ['**/*.acceptance.test.*'],
-    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx'],
+    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'squad-mem'],
   },
   database: {
     paths: ['packages/db/**', 'packages/server/src/db/**', 'schema/**', 'migrations/**', 'prisma/**', 'drizzle/**'],
     forbiddenPaths: ['**/*.acceptance.test.*'],
-    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'sqlite3', 'prisma', 'drizzle-kit'],
+    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'npx', 'sqlite3', 'prisma', 'drizzle-kit', 'squad-mem'],
   },
   devops: {
     paths: [
@@ -78,19 +78,19 @@ export const DEFAULT_ROLE_POLICIES: Record<string, RolePermissionPolicy> = {
       'squad.config.json',
       'tsconfig*.json',
     ],
-    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'docker', 'docker-compose', 'sh', 'bash', 'powershell', 'cmd'],
+    allowedCommands: ['pnpm', 'npm', 'node', 'git', 'docker', 'docker-compose', 'sh', 'bash', 'powershell', 'cmd', 'squad-mem'],
   },
   pm: {
     paths: ['docs/**', '.squad/**', '**/*.md'],
-    allowedCommands: ['git', 'node', 'pnpm'],
+    allowedCommands: ['git', 'node', 'pnpm', 'squad-mem'],
   },
   techlead: {
     paths: ['docs/**', '.squad/**', '**/*.contract.json', '**/*.contract.ts', '**/*.acceptance.test.*', 'packages/shared-types/**'],
-    allowedCommands: ['git', 'node', 'pnpm', 'tsc'],
+    allowedCommands: ['git', 'node', 'pnpm', 'tsc', 'squad-mem'],
   },
   qa: {
     paths: ['docs/**', '.squad/**', '**/*.test.*', '**/*.spec.*'],
-    allowedCommands: ['git', 'node', 'pnpm', 'npm', 'npx', 'vitest', 'jest', 'playwright'],
+    allowedCommands: ['git', 'node', 'pnpm', 'npm', 'npx', 'vitest', 'jest', 'playwright', 'squad-mem'],
   },
 };
 

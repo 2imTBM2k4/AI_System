@@ -232,6 +232,22 @@ export function parseFrontmatter(rawContent: string): { frontmatter: Partial<Age
   return { frontmatter, body };
 }
 
+export const ROLE_ALIASES: Record<string, string> = {
+  planner: 'pm',
+  architect: 'techlead',
+  tester: 'qa',
+  reviewer: 'qa',
+};
+
+/**
+ * Returns the canonical name for an agent role (pm, techlead, backend, frontend, mobile, database, qa, devops).
+ * Normalizes aliases: planner -> pm, architect -> techlead, tester/reviewer -> qa.
+ */
+export function getCanonicalRole(role: string): string {
+  const normalized = role.toLowerCase().trim();
+  return ROLE_ALIASES[normalized] ?? normalized;
+}
+
 /** Resolves candidate markdown filenames for a given role in prioritized order. */
 export function getAgentPromptCandidates(role: string, customPromptFile?: string): string[] {
   const roleAliases: Record<string, string[]> = {
@@ -241,6 +257,7 @@ export function getAgentPromptCandidates(role: string, customPromptFile?: string
     tester: ['qa', 'reviewer'],
     reviewer: ['qa', 'tester'],
     techlead: ['architect'],
+    architect: ['techlead'],
   };
   const rolesToSearch = [role, ...(roleAliases[role] ?? [])];
   const standard: string[] = [];

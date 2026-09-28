@@ -42,6 +42,7 @@ import { ClarificationStage, TechLeadStage, DevOpsStage, type ClarificationResul
 import { TaskLockManager, isPidAlive } from './lock.js';
 import { HookPipeline } from './hooks.js';
 import { validateFileAccess } from './permissions.js';
+import { injectMemoryEnv } from './memory.js';
 
 /** Forcefully kills a process and all its descendants to avoid orphaned background tasks. */
 export function killProcessTree(pid: number | undefined | null): void {
@@ -174,11 +175,12 @@ export class SquadOrchestrator extends EventEmitter {
     );
     const command = renderAgentCommand(agent, prompt);
     const outputChunks: string[] = [];
+    const agentEnv = injectMemoryEnv(repoPath, 'pm', undefined, agent.spec.env);
     const processResult = await this.spawnProcess(
       command[0],
       command.slice(1),
       repoPath,
-      agent.spec.env,
+      agentEnv,
       false,
       undefined,
       (chunk) => {
@@ -236,11 +238,12 @@ export class SquadOrchestrator extends EventEmitter {
 
     this.emit('plan:start', { type: 'plan:start', goal: message } satisfies SquadEvent);
 
+    const agentEnv = injectMemoryEnv(repoPath, 'pm', undefined, agent.spec.env);
     const processResult = await this.spawnProcess(
       command[0],
       command.slice(1),
       repoPath,
-      agent.spec.env,
+      agentEnv,
       false,
       undefined,
       (chunk) => {
@@ -682,6 +685,7 @@ export class SquadOrchestrator extends EventEmitter {
           }
 
           if (!permissionDenied && !activeTask.cancelled) {
+            const agentEnv = injectMemoryEnv(repoPath, task.role, runId, agent.spec.env);
             const agentResult = await this.runProcess(
               runId,
               task.id,
@@ -691,7 +695,7 @@ export class SquadOrchestrator extends EventEmitter {
               command[0],
               command.slice(1),
               targetDir,
-              agent.spec.env,
+              agentEnv,
               false,
               true,
             );
@@ -1300,12 +1304,13 @@ HOẶC:
       const qaActiveTask: ActiveTask = { cancelled: false, finalized: false };
       const qaLogPath = resolve(paths.logDir, runId, `review-${round}.log`);
 
+      const qaEnv = injectMemoryEnv(repoPath, 'qa', runId, reviewerAgent.spec.env);
       try {
         await this.spawnProcess(
           command[0],
           command.slice(1),
           repoPath,
-          reviewerAgent.spec.env,
+          qaEnv,
           false,
           qaActiveTask,
           (chunk) => {

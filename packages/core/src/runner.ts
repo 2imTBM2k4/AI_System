@@ -5,6 +5,7 @@ import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import {
+  getCanonicalRole,
   renderAgentCommand,
   renderAgentPrompt,
   loadSquadConfig,
@@ -592,7 +593,8 @@ export class SquadOrchestrator extends EventEmitter {
         if (activeTask.cancelled) {
           status = 'cancelled';
         } else {
-          const agent = await resolveAgent(this.options.config, task.role);
+          const canonicalRole = getCanonicalRole(task.role);
+          const agent = await resolveAgent(this.options.config, canonicalRole);
           agentName = agent.spec.cli ?? agent.spec.command?.[0];
 
           const targetFileList = task.files.length > 0
@@ -617,7 +619,7 @@ export class SquadOrchestrator extends EventEmitter {
             const fileHook = await this.hooks.executePreHooks({
               runId,
               taskId: task.id,
-              role: task.role,
+              role: canonicalRole,
               actionType: 'file_write',
               target: file,
               repoPath,
@@ -654,7 +656,7 @@ export class SquadOrchestrator extends EventEmitter {
             const cmdHook = await this.hooks.executePreHooks({
               runId,
               taskId: task.id,
-              role: task.role,
+              role: canonicalRole,
               actionType: 'command_exec',
               target: command[0],
               repoPath,
@@ -685,7 +687,7 @@ export class SquadOrchestrator extends EventEmitter {
           }
 
           if (!permissionDenied && !activeTask.cancelled) {
-            const agentEnv = injectMemoryEnv(repoPath, task.role, runId, agent.spec.env);
+            const agentEnv = injectMemoryEnv(repoPath, canonicalRole, runId, agent.spec.env);
             const agentResult = await this.runProcess(
               runId,
               task.id,
@@ -712,7 +714,7 @@ export class SquadOrchestrator extends EventEmitter {
               status = 'agent_failed';
               errorMessage = this.processFailureMessage(agentResult);
             } else {
-              const roleKey = task.role?.toLowerCase() ?? '';
+              const roleKey = canonicalRole.toLowerCase();
               const roleVerify = ROLE_DEFAULT_VERIFY_COMMANDS[roleKey];
               const fallbackVerify = this.options.config.config.verify.join(' && ');
               const verifyCommand = task.verify || roleVerify || fallbackVerify;

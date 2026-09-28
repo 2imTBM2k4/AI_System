@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { readMemory, writeMemory, appendMemory, listMemories, searchMemory } from './api.js';
+import { readMemory, writeMemory, appendMemory, listMemories, searchMemory, deleteMemory } from './api.js';
 import { parseMemory, serializeMemory } from './parser.js';
 import { startSession, endSession } from './session.js';
 import { MemoryScope } from './types.js';
@@ -31,15 +31,20 @@ program
     }
   });
 
-// 2. squad-mem write <path> --stdin
+// 2. squad-mem write <path> --stdin --by <agent>
 program
   .command('write <path>')
   .description('Write a memory document from stdin')
   .option('--stdin', 'Read content from stdin')
-  .action(async (relPath: string, opts: { stdin?: boolean }) => {
+  .requiredOption('--by <agent>', 'Agent or persona writing the document')
+  .action(async (relPath: string, opts: { stdin?: boolean; by: string }) => {
     try {
       if (!opts.stdin) {
         process.stderr.write("Missing '--stdin' flag for write command\n");
+        process.exit(1);
+      }
+      if (!opts.by || opts.by.trim().length === 0) {
+        process.stderr.write('Error writing memory: --by cannot be empty\n');
         process.exit(1);
       }
 
@@ -54,9 +59,14 @@ program
       }
 
       const doc = parseMemory(raw, relPath);
-      await writeMemory(relPath, doc);
+      doc.frontmatter.updatedBy = opts.by;
+      await writeMemory(relPath, doc, { by: opts.by });
     } catch (err: any) {
-      process.stderr.write(`Error writing memory: ${err.message}\n`);
+      if (err.message === 'index.md is read-only for agents; edit it manually') {
+        process.stderr.write(`${err.message}\n`);
+      } else {
+        process.stderr.write(`Error writing memory: ${err.message}\n`);
+      }
       process.exit(1);
     }
   });
@@ -82,7 +92,29 @@ program
         scope: opts.scope as MemoryScope | undefined,
       });
     } catch (err: any) {
-      process.stderr.write(`Error appending memory: ${err.message}\n`);
+      if (err.message === 'index.md is read-only for agents; edit it manually') {
+        process.stderr.write(`${err.message}\n`);
+      } else {
+        process.stderr.write(`Error appending memory: ${err.message}\n`);
+      }
+      process.exit(1);
+    }
+  });
+
+// 4. squad-mem delete <path> [--by <agent>]
+program
+  .command('delete <path>')
+  .description('Delete a memory document')
+  .option('--by <agent>', 'Agent or persona deleting the document')
+  .action(async (relPath: string, opts: { by?: string }) => {
+    try {
+      await deleteMemory(relPath, { by: opts.by });
+    } catch (err: any) {
+      if (err.message === 'index.md is read-only for agents; edit it manually') {
+        process.stderr.write(`${err.message}\n`);
+      } else {
+        process.stderr.write(`Error deleting memory: ${err.message}\n`);
+      }
       process.exit(1);
     }
   });

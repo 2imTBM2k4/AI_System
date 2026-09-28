@@ -93,8 +93,8 @@ updatedBy: architect
 - Quy ước 2: Tránh giả định khi thiếu thông tin 🛡️
 `;
 
-    // 1. Write via stdin
-    const writeRes = await execCli(['write', 'decisions/quy-uoc.md', '--stdin'], {
+    // 1. Write via stdin with required --by
+    const writeRes = await execCli(['write', 'decisions/quy-uoc.md', '--stdin', '--by', 'architect'], {
       memoryDir,
       stdin: docWithVietnamese,
     });
@@ -109,12 +109,12 @@ updatedBy: architect
   });
 
   it('supports full lifecycle via CLI: append, list, search, start, end', async () => {
-    // 1. Append into index.md
-    const appRes1 = await execCli(
-      ['append', 'index.md', 'Project Overview Fact', '--by', 'lead-agent', '--scope', 'project'],
-      { memoryDir }
+    // 1. index.md is seeded by owner
+    const fs = await import('node:fs');
+    fs.writeFileSync(
+      path.join(memoryDir, 'index.md'),
+      `---\nname: index\ndescription: overview\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\n- Project Overview Fact\n`
     );
-    expect(appRes1.code).toBe(0);
 
     // 2. Append into role note (matching role per Decision)
     const appRes2 = await execCli(
@@ -217,7 +217,7 @@ updatedBy: powershell-agent
 - Thực thi đường ống PowerShell thành công 🚀
 - Bảo đảm toàn vẹn mã hóa UTF-8 🛡️
 "@
-$doc | node "${CLI_PATH.replace(/\\/g, '\\\\')}" write decisions/pwsh-test.md --stdin
+$doc | node "${CLI_PATH.replace(/\\/g, '\\\\')}" write decisions/pwsh-test.md --stdin --by powershell-agent
 `;
 
     const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
@@ -296,7 +296,8 @@ updatedBy: architect
 ---
 ${'A'.repeat(500)}
 `;
-    await execCli(['write', 'index.md', '--stdin'], { memoryDir, stdin: longIndex });
+    const fs = await import('node:fs');
+    fs.writeFileSync(path.join(memoryDir, 'index.md'), longIndex, 'utf8');
 
     const maxChars = 250;
     const res = await execCli(
@@ -309,5 +310,59 @@ ${'A'.repeat(500)}
     expect(res.stdout.trim().length).toBeLessThanOrEqual(maxChars);
     expect(res.stderr).toContain('Warning: index.md exceeds maxChars limit');
     expect(res.stderr).toContain(`maxChars: ${maxChars}`);
+  });
+
+  it('rejects write, append, and delete on index.md with exit code != 0 and exact stderr message', async () => {
+    const doc = `---\nname: idx\ndescription: d\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: pm\n---\n- c\n`;
+
+    // 1. write index.md
+    const writeRes = await execCli(['write', 'index.md', '--stdin', '--by', 'pm'], {
+      memoryDir,
+      stdin: doc,
+    });
+    expect(writeRes.code).not.toBe(0);
+    expect(writeRes.stderr.trim()).toBe('index.md is read-only for agents; edit it manually');
+
+    // 2. append index.md
+    const appendRes = await execCli(['append', './index.md', 'some fact', '--by', 'pm'], {
+      memoryDir,
+    });
+    expect(appendRes.code).not.toBe(0);
+    expect(appendRes.stderr.trim()).toBe('index.md is read-only for agents; edit it manually');
+
+    // 3. delete index.md
+    const deleteRes = await execCli(['delete', 'decisions/../index.md'], {
+      memoryDir,
+    });
+    expect(deleteRes.code).not.toBe(0);
+    expect(deleteRes.stderr.trim()).toBe('index.md is read-only for agents; edit it manually');
+  });
+
+  it('enforces role write and delete permissions via CLI', async () => {
+    const roleDoc = `---\nname: pm\ndescription: pm notes\nscope: role\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: pm\n---\n- pm item\n`;
+
+    // 1. write roles/pm.md with --by pm (success)
+    const writeOk = await execCli(['write', 'roles/pm.md', '--stdin', '--by', 'pm'], {
+      memoryDir,
+      stdin: roleDoc,
+    });
+    expect(writeOk.code).toBe(0);
+
+    // 2. write roles/pm.md with --by dev (mismatch -> error)
+    const writeFail = await execCli(['write', 'Roles/pm.md', '--stdin', '--by', 'dev'], {
+      memoryDir,
+      stdin: roleDoc,
+    });
+    expect(writeFail.code).not.toBe(0);
+    expect(writeFail.stderr).toContain("Permission denied: agent 'dev' cannot write to 'roles/pm.md'. Only role 'pm' is permitted.");
+
+    // 3. delete roles/pm.md with --by dev (mismatch -> error)
+    const delFail = await execCli(['delete', 'roles/pm.md', '--by', 'dev'], { memoryDir });
+    expect(delFail.code).not.toBe(0);
+    expect(delFail.stderr).toContain("Permission denied: agent 'dev' cannot delete 'roles/pm.md'. Only role 'pm' is permitted.");
+
+    // 4. delete roles/pm.md with --by pm (success)
+    const delOk = await execCli(['delete', 'roles/pm.md', '--by', 'pm'], { memoryDir });
+    expect(delOk.code).toBe(0);
   });
 });

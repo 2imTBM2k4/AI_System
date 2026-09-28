@@ -24,7 +24,11 @@ describe('Session lifecycle helpers (T4)', () => {
   });
 
   it('returns index.md and role notes when task has no state yet', async () => {
-    await appendMemory('index.md', 'Architecture Rule: All tests must be real', { updatedBy: 'system' }, { memoryDir });
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      path.join(memoryDir, 'index.md'),
+      `---\nname: index\ndescription: conventions\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\n- Architecture Rule: All tests must be real\n`
+    );
     await appendMemory('roles/frontend.md', 'Always use semantic HTML and CSS variables', { updatedBy: 'frontend' }, { memoryDir });
 
     const context = await startSession(
@@ -57,7 +61,11 @@ describe('Session lifecycle helpers (T4)', () => {
 
   it('truncates oldest task state when exceeding maxChars, preserves index.md, and adds marker', async () => {
     const longProjectRule = 'CRITICAL RULE: NEVER OVERWRITE PRODUCTION DATABASE WITHOUT BACKUP!';
-    await appendMemory('index.md', longProjectRule, { updatedBy: 'lead' }, { memoryDir });
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      path.join(memoryDir, 'index.md'),
+      `---\nname: index\ndescription: conventions\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\n- ${longProjectRule}\n`
+    );
 
     // Generate large task history (old lines to new lines)
     const taskLines: string[] = [];
@@ -150,7 +158,11 @@ describe('Session lifecycle helpers (T4)', () => {
 
   it('handles index.md alone exceeding maxChars by truncating index.md end per agreed decision', async () => {
     const hugeProjectConventions = 'Rule ' + 'X'.repeat(5000) + ' END_OF_RULES';
-    await appendMemory('index.md', hugeProjectConventions, { updatedBy: 'lead' }, { memoryDir });
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      path.join(memoryDir, 'index.md'),
+      `---\nname: index\ndescription: conventions\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\n- ${hugeProjectConventions}\n`
+    );
 
     const maxCharsLimit = 500;
     const context = await startSession(

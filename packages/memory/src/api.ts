@@ -18,6 +18,78 @@ export interface MemoryOptions {
 }
 
 /**
+ * Options for writeMemory operations.
+ */
+export interface WriteMemoryOptions extends MemoryOptions {
+  /** Optional agent attribution to verify role permissions */
+  by?: string;
+}
+
+/**
+ * Options for deleteMemory operations.
+ */
+export interface DeleteMemoryOptions extends MemoryOptions {
+  /** Optional agent attribution to verify role permissions */
+  by?: string;
+}
+
+/**
+ * Normalized representation of a memory file path.
+ */
+export interface NormalizedMemoryPath {
+  fullPath: string;
+  relPath: string;
+  lowerRelPath: string;
+}
+
+/**
+ * Resolves and normalizes a relative memory path against root.
+ * Computes root-relative path with POSIX forward slashes and lowercases it
+ * for case-insensitive permission checks.
+ */
+export function normalizeMemoryPath(root: string, relPath: string): NormalizedMemoryPath {
+  const fullPath = resolveSafePath(root, relPath);
+  const relative = path.relative(root, fullPath).replace(/\\/g, '/');
+  return {
+    fullPath,
+    relPath: relative,
+    lowerRelPath: relative.toLowerCase(),
+  };
+}
+
+/**
+ * Enforces permission rules on writing/appending/deleting memory files:
+ * 1. index.md is strictly read-only for agents.
+ * 2. roles/<x>.md can only be modified when by == <x>.
+ */
+function enforceWritePermissions(
+  target: NormalizedMemoryPath,
+  operation: 'write' | 'append' | 'delete',
+  by?: string
+): void {
+  // Rule 1: index.md is read-only for agents
+  if (target.lowerRelPath === 'index.md') {
+    throw new Error('index.md is read-only for agents; edit it manually');
+  }
+
+  // Rule 2: roles/<x>.md can only be modified when by == <x>
+  if (target.lowerRelPath.startsWith('roles/')) {
+    const roleTarget = path.basename(target.lowerRelPath, path.extname(target.lowerRelPath));
+    validateIdentifier(roleTarget, 'role');
+    if (!by || by.trim().length === 0) {
+      throw new Error(`Agent identity (--by) is required to ${operation} role memory 'roles/${roleTarget}.md'`);
+    }
+    validateIdentifier(by, 'updatedBy / agent');
+    const opText = operation === 'delete' ? 'delete' : `${operation} to`;
+    if (by.toLowerCase() !== roleTarget.toLowerCase()) {
+      throw new Error(
+        `Permission denied: agent '${by}' cannot ${opText} 'roles/${roleTarget}.md'. Only role '${roleTarget}' is permitted.`
+      );
+    }
+  }
+}
+
+/**
  * Metadata provided when appending a fact/line to a memory document.
  */
 export interface AppendMeta {
@@ -138,16 +210,18 @@ export async function readMemory(
 export async function writeMemory(
   relPath: string,
   doc: MemoryDoc,
-  options?: MemoryOptions
+  options?: WriteMemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const fullPath = resolveSafePath(root, relPath);
-  const raw = serializeMemory(doc);
+  const target = normalizeMemoryPath(root, relPath);
+  const by = options?.by || doc.frontmatter.updatedBy;
+  enforceWritePermissions(target, 'write', by);
 
+  const raw = serializeMemory(doc);
   await withFileLock(
-    fullPath,
+    target.fullPath,
     async () => {
-      await atomicWrite(fullPath, raw);
+      await atomicWrite(target.fullPath, raw);
     },
     { timeoutMs: options?.lockTimeoutMs }
   );
@@ -170,30 +244,18 @@ export async function appendMemory(
   options?: MemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const fullPath = resolveSafePath(root, relPath);
-
-  // Enforcement: Only role <x> can append to roles/<x>.md
-  const normalized = relPath.replace(/\\/g, '/');
-  if (normalized.startsWith('roles/')) {
-    const roleTarget = path.basename(normalized, path.extname(normalized));
-    validateIdentifier(roleTarget, 'role');
-    validateIdentifier(meta.updatedBy, 'updatedBy');
-    if (meta.updatedBy !== roleTarget) {
-      throw new Error(
-        `Permission denied: agent '${meta.updatedBy}' cannot append to 'roles/${roleTarget}.md'. Only role '${roleTarget}' is permitted.`
-      );
-    }
-  }
+  const target = normalizeMemoryPath(root, relPath);
+  enforceWritePermissions(target, 'append', meta.updatedBy);
 
   await withFileLock(
-    fullPath,
+    target.fullPath,
     async () => {
       const nowIso = new Date().toISOString();
       let doc: MemoryDoc;
 
-      if (existsSync(fullPath)) {
-        const raw = await readFile(fullPath, 'utf8');
-        doc = parseMemory(raw, relPath);
+      if (existsSync(target.fullPath)) {
+        const raw = await readFile(target.fullPath, 'utf8');
+        doc = parseMemory(raw, target.relPath);
 
         // Update frontmatter metadata
         doc.frontmatter.updatedAt = nowIso;
@@ -207,8 +269,8 @@ export async function appendMemory(
         doc.content = existingTrimmed.length > 0 ? `${existingTrimmed}\n${fact}\n` : `\n${fact}\n`;
       } else {
         // Create initial document
-        const baseName = path.basename(relPath, path.extname(relPath));
-        const scope = meta.scope || inferScopeFromRelPath(relPath);
+        const baseName = path.basename(target.relPath, path.extname(target.relPath));
+        const scope = meta.scope || inferScopeFromRelPath(target.relPath);
         const frontmatter: MemoryFrontmatter = {
           name: meta.name || baseName,
           description: meta.description || `Memory for ${baseName}`,
@@ -225,7 +287,7 @@ export async function appendMemory(
       }
 
       const serialized = serializeMemory(doc);
-      await atomicWrite(fullPath, serialized);
+      await atomicWrite(target.fullPath, serialized);
     },
     { timeoutMs: options?.lockTimeoutMs }
   );
@@ -359,20 +421,21 @@ export async function searchMemory(
  */
 export async function deleteMemory(
   relPath: string,
-  options?: MemoryOptions
+  options?: DeleteMemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const fullPath = resolveSafePath(root, relPath);
+  const target = normalizeMemoryPath(root, relPath);
+  enforceWritePermissions(target, 'delete', options?.by);
 
-  if (!existsSync(fullPath)) {
+  if (!existsSync(target.fullPath)) {
     return;
   }
 
   await withFileLock(
-    fullPath,
+    target.fullPath,
     async () => {
       try {
-        await unlink(fullPath);
+        await unlink(target.fullPath);
       } catch (err: any) {
         if (err.code !== 'ENOENT') {
           throw err;

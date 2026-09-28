@@ -96,7 +96,11 @@ describe('Memory API (T3)', () => {
   });
 
   it('filters memories by scope in listMemories', async () => {
-    await appendMemory('index.md', 'Overview', { updatedBy: 'orchestrator', scope: 'project' }, { memoryDir });
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      path.join(memoryDir, 'index.md'),
+      `---\nname: index\ndescription: overview\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\n- Overview\n`
+    );
     await appendMemory('roles/architect.md', 'Architect notes', { updatedBy: 'architect', scope: 'role' }, { memoryDir });
     await appendMemory('tasks/task-99.md', 'Task 99 state', { updatedBy: 'worker', scope: 'task' }, { memoryDir });
 

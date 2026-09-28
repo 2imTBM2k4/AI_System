@@ -16,11 +16,22 @@ export class PathTraversalError extends Error {
 
 /**
  * Custom error thrown when acquiring a file lock exceeds the configured timeout.
+ * Includes details of the underlying system error (e.g. EEXIST, EPERM, or EBUSY).
  */
 export class LockTimeoutError extends Error {
-  constructor(public readonly filePath: string, public readonly timeoutMs: number) {
-    super(`Timed out acquiring lock for '${filePath}' after ${timeoutMs}ms`);
+  constructor(
+    public readonly filePath: string,
+    public readonly timeoutMs: number,
+    public readonly lastError?: unknown
+  ) {
+    const detail = lastError instanceof Error
+      ? ` (Code: ${(lastError as any).code || 'UNKNOWN'}, Message: ${lastError.message})`
+      : lastError ? ` (Detail: ${String(lastError)})` : '';
+    super(`Timed out acquiring lock for '${filePath}' after ${timeoutMs}ms${detail}`);
     this.name = 'LockTimeoutError';
+    if (lastError && typeof lastError === 'object') {
+      (this as any).cause = lastError;
+    }
   }
 }
 
@@ -99,8 +110,32 @@ export async function atomicWrite(filePath: string, content: string | Buffer): P
   try {
     // Write and flush to disk
     await writeFile(tempFilePath, content, { encoding: 'utf8', flag: 'w' });
+    
     // Atomic rename replaces destination file
-    await rename(tempFilePath, filePath);
+    // On Windows, if destination is momentarily open by a concurrent reader, retry with backoff
+    let renameAttempts = 10;
+    let renameErr: unknown = undefined;
+    while (renameAttempts-- > 0) {
+      try {
+        await rename(tempFilePath, filePath);
+        renameErr = undefined;
+        break;
+      } catch (rErr: any) {
+        renameErr = rErr;
+        if (
+          process.platform === 'win32' &&
+          (rErr.code === 'EPERM' || rErr.code === 'EACCES' || rErr.code === 'EBUSY') &&
+          renameAttempts > 0
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          continue;
+        }
+        throw rErr;
+      }
+    }
+    if (renameErr) {
+      throw renameErr;
+    }
   } catch (error) {
     // Clean up temporary file on failure
     try {
@@ -175,6 +210,7 @@ export async function withFileLock<T>(
 
   const startTime = Date.now();
   let acquired = false;
+  let lastContentionError: unknown = undefined;
 
   while (!acquired) {
     try {
@@ -193,6 +229,7 @@ export async function withFileLock<T>(
       acquired = true;
       break;
     } catch (err: any) {
+      lastContentionError = err;
       // Decision (a): Treat EPERM/EACCES on Windows as lock contention when the directory exists
       // (Windows NTFS STATUS_DELETE_PENDING returns EPERM on open, while existsSync(lockPath) is false during delete)
       const isWindows = process.platform === 'win32';
@@ -248,7 +285,7 @@ export async function withFileLock<T>(
 
       // Check for timeout
       if (Date.now() - startTime >= timeoutMs) {
-        throw new LockTimeoutError(filePath, timeoutMs);
+        throw new LockTimeoutError(filePath, timeoutMs, lastContentionError);
       }
 
       // Backoff with randomized jitter to prevent lock convoy / thundering herd

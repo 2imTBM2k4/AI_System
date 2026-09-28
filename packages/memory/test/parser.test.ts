@@ -244,4 +244,67 @@ updatedBy: [agent1, agent2]
 Content`;
     expect(() => parseMemory(arrayUpdatedBy)).toThrowError(/'updatedBy' must be a non-empty string/);
   });
+
+  it('throws error consistently when parsing the same corrupted YAML multiple times', () => {
+    const corruptYaml = '---\nname: [unclosed\ndescription: corrupt\n---\nBody';
+    expect(() => parseMemory(corruptYaml, 'corrupt.md')).toThrowError(MemoryParseError);
+    expect(() => parseMemory(corruptYaml, 'corrupt.md')).toThrowError(MemoryParseError);
+  });
+
+  it('strictly validates ISO 8601 date format and rejects invalid or non-ISO dates', () => {
+    // Month 13, Day 45
+    const month13Day45 = `---
+name: bad-date-1
+description: Test
+scope: project
+updatedAt: "2026-13-45"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(month13Day45)).toThrowError(/must be a valid ISO 8601 date string/);
+
+    // Natural language date "Sep 28 2026"
+    const naturalDate = `---
+name: bad-date-2
+description: Test
+scope: project
+updatedAt: "Sep 28 2026"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(naturalDate)).toThrowError(/must be a valid ISO 8601 date string/);
+
+    // Date without time component
+    const dateOnly = `---
+name: bad-date-3
+description: Test
+scope: project
+updatedAt: "2026-09-28"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(dateOnly)).toThrowError(/must be a valid ISO 8601 date string/);
+  });
+
+  it('rejects invalid scope values', () => {
+    const badScope1 = `---
+name: bad-scope
+description: Test
+scope: global
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(badScope1)).toThrowError(/expected one of \[project, role, task\]/);
+
+    const numericScope = `---
+name: bad-scope-2
+description: Test
+scope: 12345
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(numericScope)).toThrowError(/expected one of \[project, role, task\]/);
+  });
 });

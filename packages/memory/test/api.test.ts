@@ -181,24 +181,65 @@ describe('Memory API (T3)', () => {
     // Must have exactly 200 lines (10 workers * 20 lines)
     expect(rawLines.length).toBe(workerCount * linesPerWorker);
 
+    // Verify uniqueness with Set: exactly 200 distinct entries, no duplicates
+    const uniqueSet = new Set(rawLines);
+    expect(uniqueSet.size).toBe(workerCount * linesPerWorker);
+
     // Verify all 10 workers have exactly 20 lines and none are corrupted
     for (let w = 1; w <= workerCount; w++) {
       const workerLines = rawLines.filter((l) => l.startsWith(`- worker-${w}-entry-`));
       expect(workerLines.length).toBe(linesPerWorker);
 
       for (let i = 1; i <= linesPerWorker; i++) {
-        expect(rawLines).toContain(`- worker-${w}-entry-${i}`);
+        expect(uniqueSet.has(`- worker-${w}-entry-${i}`)).toBe(true);
       }
     }
   }, 45000);
 
+  it('formats appended facts with embedded newline characters into valid distinct fact lines', async () => {
+    await appendMemory(
+      'tasks/multiline-fact.md',
+      'First sub-fact\nSecond sub-fact\n\nThird sub-fact with empty line gap',
+      { updatedBy: 'agent' },
+      { memoryDir }
+    );
+
+    const doc = await readMemory('tasks/multiline-fact.md', { memoryDir });
+    expect(doc).not.toBeNull();
+    expect(doc!.content).toContain('- First sub-fact');
+    expect(doc!.content).toContain('- Second sub-fact');
+    expect(doc!.content).toContain('- Third sub-fact with empty line gap');
+  });
+
+  it('handles append and search seamlessly on files with Windows CRLF (\\r\\n) line endings', async () => {
+    const crlfInitialDoc = `---\r\nname: crlf-doc\r\ndescription: CRLF search test\r\nscope: project\r\nupdatedAt: "2026-09-28T10:00:00.000Z"\r\nupdatedBy: win-agent\r\n---\r\n- Item 1 with CRLF\r\n- Target phrase for search\r\n`;
+    
+    // Write raw CRLF file
+    const targetPath = path.join(memoryDir, 'decisions', 'crlf-search.md');
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(path.dirname(targetPath), { recursive: true });
+    writeFileSync(targetPath, crlfInitialDoc, 'utf8');
+
+    // 1. Search on CRLF file
+    const searchRes1 = await searchMemory('Target phrase', { memoryDir });
+    expect(searchRes1.length).toBe(1);
+    expect(searchRes1[0].path).toBe('decisions/crlf-search.md');
+    expect(searchRes1[0].lineContent).toBe('- Target phrase for search');
+    expect(searchRes1[0].lineContent.includes('\r')).toBe(false);
+
+    // 2. Append to CRLF file
+    await appendMemory('decisions/crlf-search.md', 'Appended fact to CRLF file', { updatedBy: 'win-agent' }, { memoryDir });
+
+    const doc = await readMemory('decisions/crlf-search.md', { memoryDir });
+    expect(doc).not.toBeNull();
+    expect(doc!.content).toContain('Appended fact to CRLF file');
+  });
+
   it('requires explicit scope for non-standard paths and rejects missing scope per Decision (d)', async () => {
-    // Fails when scope is omitted on arbitrary path
     await expect(
       appendMemory('custom/random.md', 'Some fact', { updatedBy: 'agent' }, { memoryDir })
     ).rejects.toThrowError(/Cannot infer memory scope for non-standard path 'custom\/random\.md'/);
 
-    // Succeeds when explicit scope is provided
     await appendMemory(
       'custom/random.md',
       'Some fact',

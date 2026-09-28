@@ -116,13 +116,21 @@ program
     }
   });
 
+function parseMaxChars(val: string): number {
+  const num = Number(val);
+  if (!Number.isInteger(num) || num <= 0) {
+    throw new Error(`--max-chars must be a positive integer, received: '${val}'`);
+  }
+  return num;
+}
+
 // 6. squad-mem start --task <id> --role <r> [--max-chars <n>]
 program
   .command('start')
   .description('Start a task session and output concatenated memory context')
   .requiredOption('--task <taskId>', 'Task identifier')
   .requiredOption('--role <role>', 'Agent role')
-  .option('--max-chars <n>', 'Maximum character length', (val) => parseInt(val, 10), 8000)
+  .option('--max-chars <n>', 'Maximum character length', parseMaxChars, 8000)
   .action(async (opts: { task: string; role: string; maxChars: number }) => {
     try {
       const context = await startSession({

@@ -87,17 +87,20 @@ export function inferScopeFromRelPath(relPath: string): MemoryScope {
 }
 
 /**
- * Formats a fact string to conform with memory markdown format (starting with '- ').
+ * Formats a fact string to conform with memory markdown format (each non-empty fact line starting with '- ').
+ * Supports inputs containing embedded newline characters.
  *
- * @param line - Raw line text.
- * @returns Formatted fact line.
+ * @param line - Raw line text (can contain newlines).
+ * @returns Formatted fact lines joined by newline.
  */
 function formatFactLine(line: string): string {
-  const trimmed = line.trim();
-  if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-    return trimmed;
-  }
-  return `- ${trimmed}`;
+  const parts = line.split(/\r?\n/);
+  const formattedParts = parts
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => (p.startsWith('- ') || p.startsWith('* ') ? p : `- ${p}`));
+
+  return formattedParts.length > 0 ? formattedParts.join('\n') : `- ${line.trim()}`;
 }
 
 /**
@@ -309,9 +312,9 @@ export async function searchMemory(
       const raw = await readFile(fullPath, 'utf8');
       const doc = parseMemory(raw, rel);
 
-      const lines = doc.content.split('\n');
+      const lines = doc.content.split(/\r?\n/);
       for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+        const line = lines[i].replace(/\r$/, '');
         if (line.toLowerCase().includes(lowerKeyword)) {
           results.push({
             path: rel,

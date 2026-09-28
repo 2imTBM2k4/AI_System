@@ -160,4 +160,91 @@ updatedBy: architect
     expect(readTask.stdout).toContain('Wrote unit and integration tests');
     expect(readTask.stdout).toContain('Deploy to staging');
   });
+
+  it('rejects non-integer --max-chars (e.g. abc) with non-zero exit code and error message', async () => {
+    const res = await execCli(
+      ['start', '--task', 'task-val', '--role', 'tester', '--max-chars', 'abc'],
+      { memoryDir }
+    );
+
+    expect(res.code).not.toBe(0);
+    expect(res.stderr).toContain('--max-chars must be a positive integer');
+  });
+
+  it('exits with non-zero code and logs error when a file lock cannot be acquired (lock timeout)', async () => {
+    const target = 'decisions/lock-cli-timeout.md';
+    const lockPath = path.join(memoryDir, `${target}.lock`);
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    mkdirSync(path.dirname(lockPath), { recursive: true });
+
+    // Create an active fresh lock
+    const payload = {
+      pid: process.pid,
+      acquiredAt: Date.now(),
+      filePath: path.join(memoryDir, target),
+    };
+    writeFileSync(lockPath, JSON.stringify(payload), 'utf8');
+
+    try {
+      const res = await execCli(
+        ['append', target, 'Fact while locked', '--by', 'agent'],
+        { memoryDir }
+      );
+
+      // Must fail with non-zero exit code
+      expect(res.code).not.toBe(0);
+      expect(res.stderr).toMatch(/(Timed out acquiring lock|Error appending memory)/);
+    } finally {
+      const { rmSync } = await import('node:fs');
+      rmSync(lockPath, { force: true });
+    }
+  }, 15000);
+
+  it('supports real PowerShell piping with UTF-8 Vietnamese characters into write --stdin', async () => {
+    if (process.platform !== 'win32') return;
+
+    const psScript = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$doc = @"
+---
+name: pwsh-test
+description: Tiếng Việt có dấu từ PowerShell 🇻🇳
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: powershell-agent
+---
+- Thực thi đường ống PowerShell thành công 🚀
+- Bảo đảm toàn vẹn mã hóa UTF-8 🛡️
+"@
+$doc | node "${CLI_PATH.replace(/\\/g, '\\\\')}" write decisions/pwsh-test.md --stdin
+`;
+
+    const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+    const { exec } = await import('node:child_process');
+
+    await new Promise<void>((resolve, reject) => {
+      exec(
+        `powershell.exe -NoProfile -EncodedCommand ${encoded}`,
+        {
+          env: { ...process.env, SQUAD_MEMORY_DIR: memoryDir },
+          encoding: 'utf8',
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(`PowerShell pipe failed: ${error.message} (stderr: ${stderr})`));
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    // Read back via CLI
+    const readRes = await execCli(['read', 'decisions/pwsh-test.md'], { memoryDir });
+    expect(readRes.code).toBe(0);
+    expect(readRes.stdout).toContain('Tiếng Việt có dấu từ PowerShell');
+    expect(readRes.stdout).toContain('Thực thi đường ống PowerShell thành công 🚀');
+    expect(readRes.stdout).toContain('Bảo đảm toàn vẹn mã hóa UTF-8 🛡️');
+  }, 15000);
 });

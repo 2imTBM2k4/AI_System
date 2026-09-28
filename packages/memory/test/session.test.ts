@@ -131,4 +131,35 @@ describe('Session lifecycle helpers (T4)', () => {
     expect(doc!.content).toContain('gemini-agent');
     expect(doc!.content).toContain('claude-agent');
   });
+
+  it('safely slices without splitting multi-byte emoji surrogate pairs into corrupt characters', async () => {
+    // Rocket emoji is \uD83D\uDE80 (2 UTF-16 code units)
+    const longTaskLine = 'A'.repeat(50) + '🚀' + 'B'.repeat(50);
+    await appendMemory('tasks/emoji-task.md', longTaskLine, { updatedBy: 'agent' }, { memoryDir });
+
+    // Request startSession with budget forcing truncation near the emoji
+    const context = await startSession(
+      { taskId: 'emoji-task', role: 'worker', maxChars: 120 },
+      { memoryDir }
+    );
+
+    // Context must not contain orphaned replacement character \uFFFD
+    expect(context.includes('\uFFFD')).toBe(false);
+    expect(context).toContain(TRUNCATION_MARKER);
+  });
+
+  it('handles index.md alone exceeding maxChars by truncating index.md end per agreed decision', async () => {
+    const hugeProjectConventions = 'Rule ' + 'X'.repeat(5000) + ' END_OF_RULES';
+    await appendMemory('index.md', hugeProjectConventions, { updatedBy: 'lead' }, { memoryDir });
+
+    const maxCharsLimit = 500;
+    const context = await startSession(
+      { taskId: 'task-any', role: 'architect', maxChars: maxCharsLimit },
+      { memoryDir }
+    );
+
+    expect(context).toContain('## Project Conventions (index.md)');
+    expect(context).toContain('[... Truncated index.md exceeding maxChars ...]');
+    expect(context.length).toBeLessThanOrEqual(maxCharsLimit);
+  });
 });

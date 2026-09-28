@@ -2,6 +2,7 @@ import matter from 'gray-matter';
 import { MemoryDoc, MemoryFrontmatter, MemoryParseError, MemoryScope } from './types.js';
 
 const VALID_SCOPES: readonly MemoryScope[] = ['project', 'role', 'task'] as const;
+const ISO_8601_STRICT_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
 
 /**
  * Validates frontmatter object and ensures all required fields are present and valid.
@@ -36,7 +37,11 @@ function validateFrontmatter(data: Record<string, unknown>, filePath?: string): 
   let normalizedUpdatedAt = '';
   if (updatedAt instanceof Date && !isNaN(updatedAt.getTime())) {
     normalizedUpdatedAt = updatedAt.toISOString();
-  } else if (typeof updatedAt === 'string' && updatedAt.trim().length > 0 && !isNaN(Date.parse(updatedAt))) {
+  } else if (
+    typeof updatedAt === 'string' &&
+    ISO_8601_STRICT_REGEX.test(updatedAt.trim()) &&
+    !isNaN(Date.parse(updatedAt.trim()))
+  ) {
     normalizedUpdatedAt = updatedAt.trim();
   } else {
     throw new MemoryParseError(

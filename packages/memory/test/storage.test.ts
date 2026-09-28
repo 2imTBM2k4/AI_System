@@ -37,20 +37,35 @@ describe('storage layer (T2)', () => {
       expect(() => resolveSafePath(rootDir, absPath)).toThrowError(PathTraversalError);
     });
 
-    it('rejects symlinks that resolve outside of root', () => {
+    it('rejects symlinks that resolve outside of root (tested with both real symlink and junction)', () => {
       const outsideDir = mkdtempSync(path.join(tmpdir(), 'squad-mem-outside-'));
-      const symlinkPath = path.join(rootDir, 'outside_link');
+      const outsideFile = path.join(outsideDir, 'secret.txt');
+      writeFileSync(outsideFile, 'confidential', 'utf8');
 
+      // 1. Test real file symlink if permissions allow
+      const symlinkFilePath = path.join(rootDir, 'symlink_secret.txt');
+      let fileSymlinkCreated = false;
       try {
-        // Use junction on Windows for directories without requiring elevated privileges
-        const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
-        symlinkSync(outsideDir, symlinkPath, symlinkType);
-
-        expect(() => resolveSafePath(rootDir, 'outside_link/secret.txt')).toThrowError(PathTraversalError);
-      } finally {
-        if (existsSync(outsideDir)) {
-          rmSync(outsideDir, { recursive: true, force: true });
+        symlinkSync(outsideFile, symlinkFilePath, 'file');
+        fileSymlinkCreated = true;
+        expect(() => resolveSafePath(rootDir, 'symlink_secret.txt')).toThrowError(PathTraversalError);
+      } catch (err: any) {
+        if (err.code === 'EPERM' && process.platform === 'win32') {
+          console.info('[SKIPPED file symlink test on Windows due to lack of SeCreateSymbolicLinkPrivilege / Developer Mode]');
+        } else if (!(err instanceof PathTraversalError)) {
+          throw err;
         }
+      }
+
+      // 2. Test directory junction (supported 100% on Windows without elevated privileges)
+      const junctionDir = path.join(rootDir, 'outside_junction');
+      const junctionType = process.platform === 'win32' ? 'junction' : 'dir';
+      symlinkSync(outsideDir, junctionDir, junctionType);
+
+      expect(() => resolveSafePath(rootDir, 'outside_junction/secret.txt')).toThrowError(PathTraversalError);
+
+      if (existsSync(outsideDir)) {
+        rmSync(outsideDir, { recursive: true, force: true });
       }
     });
 
@@ -76,19 +91,46 @@ describe('storage layer (T2)', () => {
       const target = path.join(rootDir, 'crash-test', 'file.md');
       const orphanTmp = path.join(rootDir, 'crash-test', '.file.md.orphan-crash.tmp');
 
-      // Create directory and orphan tmp file
       await atomicWrite(target, 'Initial valid content');
       await writeFile(orphanTmp, 'Half-written broken content from crash');
 
       expect(existsSync(orphanTmp)).toBe(true);
 
-      // Write new content
       const freshContent = 'Updated complete content after restart';
       await atomicWrite(target, freshContent);
 
-      // Target must be intact with new content, no corruption
       const read = await readFile(target, 'utf8');
       expect(read).toBe(freshContent);
+    });
+
+    it('prevents torn reads by ensuring readers never see partial content during ongoing write', async () => {
+      const target = path.join(rootDir, 'read-during-write.txt');
+      const initialContent = 'VERSION_1_COMPLETE';
+      await atomicWrite(target, initialContent);
+
+      const largeContent = 'VERSION_2_START_' + 'A'.repeat(50000) + '_VERSION_2_END';
+
+      // Perform write and concurrent reads
+      const writePromise = atomicWrite(target, largeContent);
+
+      // Perform multiple concurrent reads during the write
+      const readResults: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        const content = await readFile(target, 'utf8');
+        readResults.push(content);
+      }
+
+      await writePromise;
+
+      // Every read must either see exact VERSION_1 or exact VERSION_2, never torn/partial data
+      for (const res of readResults) {
+        const isV1 = res === initialContent;
+        const isV2 = res === largeContent;
+        expect(isV1 || isV2).toBe(true);
+      }
+
+      // Final read is VERSION_2
+      expect(await readFile(target, 'utf8')).toBe(largeContent);
     });
   });
 
@@ -97,7 +139,6 @@ describe('storage layer (T2)', () => {
       const target = path.join(rootDir, 'stale-test.md');
       const lockPath = `${target}.lock`;
 
-      // Simulate a lock file written by a non-existent dead PID
       const stalePayload = {
         pid: 99999999, // Dead PID
         acquiredAt: Date.now() - 5000,
@@ -105,7 +146,6 @@ describe('storage layer (T2)', () => {
       };
       await writeFile(lockPath, JSON.stringify(stalePayload), 'utf8');
 
-      // Attempting to lock should detect dead PID, clear stale lock, and succeed
       let executed = false;
       await withFileLock(target, async () => {
         executed = true;
@@ -117,30 +157,95 @@ describe('storage layer (T2)', () => {
       expect(existsSync(lockPath)).toBe(false);
     });
 
-    it('throws LockTimeoutError when lock is held longer than timeout', async () => {
+    it('reclaims stale lock when holding process is still alive but lock exceeds 30s per Decision (b)', async () => {
+      const target = path.join(rootDir, 'stale-alive-test.md');
+      const lockPath = `${target}.lock`;
+
+      // Lock held by current (alive) process, but timestamp is 35 seconds ago
+      const staleAlivePayload = {
+        pid: process.pid,
+        acquiredAt: Date.now() - 35000,
+        filePath: target,
+      };
+      await writeFile(lockPath, JSON.stringify(staleAlivePayload), 'utf8');
+
+      let executed = false;
+      await withFileLock(
+        target,
+        async () => {
+          executed = true;
+        },
+        { timeoutMs: 3000, staleMs: 30000, retryIntervalMs: 50 }
+      );
+
+      expect(executed).toBe(true);
+      expect(existsSync(lockPath)).toBe(false);
+    });
+
+    it('throws LockTimeoutError with underlying error code (cause) when lock cannot be acquired', async () => {
       const target = path.join(rootDir, 'timeout-test.md');
       const lockPath = `${target}.lock`;
 
-      // Create an active lock owned by current process, marked as fresh
+      // Active fresh lock
       const payload = {
-        pid: process.pid, // alive PID
+        pid: process.pid,
         acquiredAt: Date.now(),
         filePath: target,
       };
       await writeFile(lockPath, JSON.stringify(payload), 'utf8');
 
       try {
-        await expect(
-          withFileLock(target, async () => {}, {
+        let caughtError: LockTimeoutError | null = null;
+        try {
+          await withFileLock(target, async () => {}, {
             timeoutMs: 300,
             retryIntervalMs: 50,
-            staleMs: 60000, // Not stale
-          })
-        ).rejects.toThrowError(LockTimeoutError);
+            staleMs: 60000,
+          });
+        } catch (err: any) {
+          caughtError = err;
+        }
+
+        expect(caughtError).not.toBeNull();
+        expect(caughtError).toBeInstanceOf(LockTimeoutError);
+        expect(caughtError!.message).toContain("Timed out acquiring lock for");
+        // Verify underlying error code is captured
+        expect(caughtError!.message).toMatch(/(Code: EEXIST|Code: EPERM|Code: EACCES|Code: EBUSY)/);
+        expect(caughtError!.lastError).toBeDefined();
       } finally {
-        // Clean up manual lock
         rmSync(lockPath, { force: true });
       }
+    });
+
+    it('handles race condition where 2 real OS processes simultaneously reclaim the same stale lock', async () => {
+      const target = path.join(rootDir, 'concurrent-stale-reclaim.txt');
+      const lockPath = `${target}.lock`;
+      const scriptPath = path.resolve(__dirname, 'fixtures/stale-cleaner.js');
+
+      // Create a stale lock from dead PID
+      const stalePayload = {
+        pid: 99999999,
+        acquiredAt: Date.now() - 5000,
+        filePath: target,
+      };
+      await writeFile(lockPath, JSON.stringify(stalePayload), 'utf8');
+
+      const runCleaner = (workerId: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const child = fork(scriptPath, ['--file', target, '--id', workerId]);
+          child.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`Cleaner ${workerId} failed with exit code ${code}`));
+          });
+          child.on('error', reject);
+        });
+      };
+
+      // Both processes race to clean the stale lock and acquire it
+      await Promise.all([runCleaner('1'), runCleaner('2')]);
+
+      // Lock file must be cleanly released at the end
+      expect(existsSync(lockPath)).toBe(false);
     });
 
     it('handles 2 real OS processes writing to the same file concurrently without data corruption', async () => {
@@ -148,7 +253,6 @@ describe('storage layer (T2)', () => {
       const scriptPath = path.resolve(__dirname, 'fixtures/concurrent-writer.js');
       const linesPerWorker = 20;
 
-      // Spawn two real separate OS worker processes
       const runWorker = (workerId: string): Promise<void> => {
         return new Promise((resolve, reject) => {
           const child = fork(scriptPath, [
@@ -166,25 +270,20 @@ describe('storage layer (T2)', () => {
         });
       };
 
-      // Run both processes in parallel
       await Promise.all([runWorker('1'), runWorker('2')]);
 
-      // Verify file integrity
       expect(existsSync(target)).toBe(true);
       const content = await readFile(target, 'utf8');
       const lines = content.trim().split('\n').filter((l) => l.trim().length > 0);
 
-      // Total lines must be exactly 2 * linesPerWorker = 40
       expect(lines.length).toBe(linesPerWorker * 2);
 
-      // Count lines from worker 1 and worker 2
       const worker1Lines = lines.filter((l) => l.includes('[worker-1]'));
       const worker2Lines = lines.filter((l) => l.includes('[worker-2]'));
 
       expect(worker1Lines.length).toBe(linesPerWorker);
       expect(worker2Lines.length).toBe(linesPerWorker);
 
-      // Ensure no corrupted lines or cutoffs
       for (let i = 1; i <= linesPerWorker; i++) {
         expect(content).toContain(`[worker-1] line ${i}`);
         expect(content).toContain(`[worker-2] line ${i}`);

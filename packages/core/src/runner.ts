@@ -22,6 +22,7 @@ import {
   runGit,
 } from './git.js';
 import { mergeRun, type MergeReport } from './merge.js';
+import { resolveDefaultShell, adaptShellCommand } from './shell.js';
 import {
   buildConsultationPrompt,
   buildPlannerPrompt,
@@ -728,9 +729,11 @@ export class SquadOrchestrator extends EventEmitter {
                   status = 'cancelled';
                 } else if (verifyResult.timedOut || verifyResult.exitCode !== 0) {
                   status = 'verify_failed';
+                  const lastOutput = logChunks.slice(-5).join('').trim();
+                  const detail = lastOutput ? `: ${lastOutput.slice(-300).trim()}` : '';
                   errorMessage = verifyResult.timedOut
-                    ? `Verify command timed out after ${this.options.config.config.timeoutMinutes} minutes.`
-                    : this.processFailureMessage(verifyResult);
+                    ? `Verify command timed out after ${this.options.config.config.timeoutMinutes} minutes. [Command: ${verifyCommand}]`
+                    : `${this.processFailureMessage(verifyResult)}${detail} [Command: ${verifyCommand}]`;
                   const verifyEvt: SquadEvent = {
                     type: 'verify:gate',
                     runId,
@@ -1016,15 +1019,20 @@ export class SquadOrchestrator extends EventEmitter {
     args: string[],
     cwd: string,
     env: Record<string, string> | undefined,
-    shell = false,
+    shell: boolean | string = false,
     recordAgentPid = false,
   ): Promise<ProcessResult> {
+    const effectiveShell = shell ? (typeof shell === 'string' ? shell : resolveDefaultShell()) : false;
+    const finalExecutable = typeof effectiveShell === 'boolean' && effectiveShell
+      ? adaptShellCommand(executable, effectiveShell)
+      : executable;
+
     return this.spawnProcess(
-      executable,
+      finalExecutable,
       args,
       cwd,
       env,
-      shell,
+      effectiveShell,
       activeTask,
       (chunk) => {
         const text = chunk.toString();
@@ -1058,7 +1066,7 @@ export class SquadOrchestrator extends EventEmitter {
     args: string[],
     cwd: string,
     env: Record<string, string> | undefined,
-    shell: boolean,
+    shell: boolean | string,
     activeTask?: ActiveTask,
     onChunk?: (chunk: Buffer | string) => void,
     onSpawn?: (pid: number) => void,

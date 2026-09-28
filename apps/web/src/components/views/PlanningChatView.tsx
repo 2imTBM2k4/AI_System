@@ -379,6 +379,9 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
           error: null,
         });
       }
+      if (onViewRun && currentViewRunId !== targetRunId) {
+        onViewRun(targetRunId);
+      }
       await retryTask(targetRunId, taskId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Không thể thử lại task này');
@@ -524,7 +527,13 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
           const distinctRoles = Array.from(new Set(planTasks.map((t) => t.role)));
 
           // Run liên kết với message này nếu có
-          const linkedRunId = message.runId || (message.plan && currentViewRunId === message.plan.runId ? currentViewRunId : null);
+          const linkedRunId =
+            message.runId ||
+            message.plan?.runId ||
+            (message.plan && currentViewRunId === message.plan.runId ? currentViewRunId : null) ||
+            viewingRun?.id ||
+            activeRun?.id ||
+            null;
           const isLiveTracking = Boolean(linkedRunId && viewingRun && viewingRun.id === linkedRunId);
 
           return (
@@ -883,11 +892,11 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
                                     </button>
 
                                     {/* Thử lại task nếu bị lỗi hoặc bỏ qua */}
-                                    {(isFailed || task.status === 'skipped') && (viewingRun || activeRun) && (
+                                    {(isFailed || task.status === 'skipped') && linkedRunId && (
                                       <button
                                         type="button"
                                         disabled={retryingTaskIds.has(task.id)}
-                                        onClick={() => handleRetryTask((viewingRun || activeRun)!.id, task.id)}
+                                        onClick={() => handleRetryTask(linkedRunId, task.id)}
                                         className="px-2 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
                                         title="Thử lại và chạy lại task này"
                                       >
@@ -1206,6 +1215,7 @@ export const PlanningChatView: React.FC<PlanningChatViewProps> = ({
             setActiveLogTask(null);
             if (activeMarkdownDoc) setRightPanelTab('markdown');
           }}
+          onTaskRetried={(taskId) => handleRetryTask(activeLogTask.runId, taskId)}
           activeTab={rightPanelTab}
           onTabChange={setRightPanelTab}
           hasMarkdownDoc={Boolean(activeMarkdownDoc)}

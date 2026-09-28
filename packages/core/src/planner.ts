@@ -56,10 +56,10 @@ QUY TẮC:
 3. Các task không phụ thuộc nhau có thể chạy độc lập và không được sửa trùng file.
 4. "files" liệt kê các path/thư mục task sẽ tạo hoặc chỉnh sửa.
 5. "prompt" là chỉ thị đầy đủ, tự đứng một mình, hướng dẫn rõ ràng file cần tạo hoặc sửa.
-6. Mỗi task có thể có "verify" là lệnh shell kiểm chứng (hoặc bỏ trống).
+6. Mỗi task có thể có "verify" là lệnh kiểm chứng kết quả thực thi (ưu tiên lệnh test runner cross-platform như "pnpm test", "npm test", hoặc lệnh script kiểm thử; nếu chỉ tạo/sửa file hoặc viết tài liệu bình thường thì nên BỎ TRỐNG "").
 
 CHỈ TRẢ VỀ JSON THUẦN:
-{"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh shell, hoặc bỏ trống"}]}`;
+{"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh test, hoặc bỏ trống"}]}`;
 }
 
 /** Builds a consultation prompt for pure Q&A and code explanation without task planning. */
@@ -106,7 +106,7 @@ TRƯỜNG HỢP 2: NGƯỜI DÙNG ĐANG RA LỆNH / GIAO NHIỆM VỤ LẬP TRÌ
 (Ví dụ: "Tạo module auth JWT", "Viết unit tests", "Sửa lỗi crash khi...", "Refactor backend", "Thêm API endpoint...")
 -> HÃY PHÂN RÃ THÀNH 1 ĐẾN 6 TASKS THEO ROADMAP (${isDirect ? 'trực tiếp trên codebase' : 'theo các nhánh git worktree'}):
 CHỈ TRẢ VỀ JSON THUẦN THEO ĐÚNG ĐỊNH DẠNG:
-{"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh shell, hoặc bỏ trống"}]}`;
+{"tasks":[{"id":"t1","title":"...","role":"...","files":["..."],"dependsOn":[],"prompt":"...","verify":"lệnh test, hoặc bỏ trống"}]}`;
 }
 
 /** Summarizes tracked files without reading repository contents. */

@@ -8,23 +8,27 @@ import {
   AlertCircle,
   Loader2,
   XCircle,
+  RotateCcw,
 } from 'lucide-react';
 import type { TaskRecordDto } from '@squad/shared-types';
-import { cancelTask } from '../../api/client';
+import { cancelTask, retryTask } from '../../api/client';
 import { GlassBadge } from '../glass/GlassBadge';
 
 interface TaskCardProps {
   task: TaskRecordDto;
   onOpenLog: (taskId: string) => void;
   onCancelled?: (taskId: string) => void;
+  onRetried?: (taskId: string) => void;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
   task,
   onOpenLog,
   onCancelled,
+  onRetried,
 }) => {
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const getRoleVariant = (role: string): 'purple' | 'cyan' | 'amber' | 'emerald' | 'indigo' => {
     switch (role.toLowerCase()) {
@@ -103,6 +107,29 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     }
   };
 
+  const isFailedOrRetryable = [
+    'verify_failed',
+    'agent_failed',
+    'bootstrap_failed',
+    'error',
+    'cancelled',
+    'skipped',
+  ].includes(task.status);
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsRetrying(true);
+      await retryTask(task.runId, task.id);
+      if (onRetried) onRetried(task.id);
+    } catch (err) {
+      console.error('Lỗi khi thử lại task:', err);
+      alert(err instanceof Error ? err.message : 'Không thể thử lại task này');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   return (
     <div
       onClick={() => onOpenLog(task.id)}
@@ -171,6 +198,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           >
             <Terminal className="w-3.5 h-3.5" />
             <span>Logs</span>
+          </button>
+        )}
+
+        {isFailedOrRetryable && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/15 hover:bg-amber-100 dark:hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-500/35 transition-all text-[11px] font-semibold disabled:opacity-50 cursor-pointer shadow-sm shadow-amber-500/10 group/retry"
+            title="Thử lại và chạy lại task này"
+          >
+            <RotateCcw
+              className={`w-3 h-3 text-amber-600 dark:text-amber-400 ${
+                isRetrying ? 'animate-spin' : 'group-hover/retry:-rotate-45 transition-transform'
+              }`}
+            />
+            <span>{isRetrying ? 'Đang chạy lại...' : 'Thử lại'}</span>
           </button>
         )}
 

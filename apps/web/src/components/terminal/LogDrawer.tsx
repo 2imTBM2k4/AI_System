@@ -10,8 +10,10 @@ import {
   Minimize2,
   CheckCircle2,
   Activity,
+  RotateCcw,
 } from 'lucide-react';
 import type { TaskRecordDto } from '@squad/shared-types';
+import { retryTask } from '../../api/client';
 
 interface LogDrawerProps {
   task: TaskRecordDto | null;
@@ -20,6 +22,7 @@ interface LogDrawerProps {
   runningTasks?: TaskRecordDto[];
   onSelectTask?: (taskId: string) => void;
   onClose: () => void;
+  onTaskRetried?: (taskId: string) => void;
   mode?: 'docked' | 'fixed';
   width?: number;
   activeTab?: 'terminal' | 'markdown';
@@ -59,6 +62,7 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
   runningTasks = [],
   onSelectTask,
   onClose,
+  onTaskRetried,
   mode = 'docked',
   width,
   activeTab = 'terminal',
@@ -68,6 +72,33 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
   const terminalRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const isFailedOrRetryable = Boolean(
+    task &&
+      [
+        'verify_failed',
+        'agent_failed',
+        'bootstrap_failed',
+        'error',
+        'cancelled',
+        'skipped',
+      ].includes(task.status)
+  );
+
+  const handleRetry = async () => {
+    if (!task) return;
+    try {
+      setIsRetrying(true);
+      await retryTask(task.runId, task.id);
+      if (onTaskRetried) onTaskRetried(task.id);
+    } catch (err) {
+      console.error('Lỗi khi thử lại task:', err);
+      alert(err instanceof Error ? err.message : 'Không thể thử lại task này');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Tự động cuộn xuống cuối khi có log mới
   useEffect(() => {
@@ -178,6 +209,24 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
                 <span className="hidden sm:inline">Markdown</span>
               </button>
             </div>
+          )}
+
+          {/* Nút thử lại task nếu bị lỗi hoặc bỏ qua */}
+          {isFailedOrRetryable && (
+            <button
+              type="button"
+              disabled={isRetrying}
+              onClick={handleRetry}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 mr-1.5 shadow-sm shadow-amber-500/10 group/drawer-retry"
+              title="Thử lại và chạy lại task này"
+            >
+              <RotateCcw
+                className={`w-3 h-3 text-amber-400 ${
+                  isRetrying ? 'animate-spin' : 'group-hover/drawer-retry:-rotate-45 transition-transform'
+                }`}
+              />
+              <span>{isRetrying ? 'Đang chạy lại...' : 'Thử lại task'}</span>
+            </button>
           )}
 
           {/* Nút phóng to / thu nhỏ panel */}

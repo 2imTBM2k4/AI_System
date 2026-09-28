@@ -30,6 +30,7 @@ interface KanbanBoardProps {
   repoId?: string;
   onTaskCancelled?: (taskId: string) => void;
   onRunStarted?: (runId: string) => void;
+  onTaskRetried?: (taskId: string) => void;
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -39,6 +40,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   repoId,
   onTaskCancelled,
   onRunStarted,
+  onTaskRetried,
 }) => {
   const [activeLogTaskId, setActiveLogTaskId] = useState<string | null>(null);
   const [mergeReport, setMergeReport] = useState<MergeReportDto | null>(null);
@@ -282,6 +284,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       task={t}
                       onOpenLog={setActiveLogTaskId}
                       onCancelled={onTaskCancelled}
+                      onRetried={onTaskRetried}
                     />
                   </div>
                 ))
@@ -324,6 +327,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       task={t}
                       onOpenLog={setActiveLogTaskId}
                       onCancelled={onTaskCancelled}
+                      onRetried={onTaskRetried}
                     />
                   </div>
                 ))
@@ -366,6 +370,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       task={t}
                       onOpenLog={setActiveLogTaskId}
                       onCancelled={onTaskCancelled}
+                      onRetried={onTaskRetried}
                     />
                   </div>
                 ))
@@ -408,6 +413,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       task={t}
                       onOpenLog={setActiveLogTaskId}
                       onCancelled={onTaskCancelled}
+                      onRetried={onTaskRetried}
                     />
                   </div>
                 ))
@@ -444,6 +450,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   task={t}
                   onOpenLog={setActiveLogTaskId}
                   onCancelled={onTaskCancelled}
+                  onRetried={onTaskRetried}
                 />
               ))}
             </div>
@@ -475,6 +482,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   task={t}
                   onOpenLog={setActiveLogTaskId}
                   onCancelled={onTaskCancelled}
+                  onRetried={onTaskRetried}
                 />
               ))}
             </div>
@@ -506,6 +514,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   task={t}
                   onOpenLog={setActiveLogTaskId}
                   onCancelled={onTaskCancelled}
+                  onRetried={onTaskRetried}
                 />
               ))}
             </div>
@@ -537,6 +546,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   task={t}
                   onOpenLog={setActiveLogTaskId}
                   onCancelled={onTaskCancelled}
+                  onRetried={onTaskRetried}
                 />
               ))}
             </div>
@@ -554,6 +564,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           mode="fixed"
           onSelectTask={(id) => setActiveLogTaskId(id)}
           onClose={() => setActiveLogTaskId(null)}
+          onTaskRetried={onTaskRetried}
         />
       )}
 

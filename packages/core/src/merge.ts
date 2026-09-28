@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { type LoadedSquadConfig } from './config.js';
 import { GitCommandError, runGit } from './git.js';
 import { topoSort } from './planner.js';
+import { resolveDefaultShell, adaptShellCommand } from './shell.js';
 import { type SquadStore } from './store.js';
 import type { TaskStatus } from './types.js';
 
@@ -51,43 +52,71 @@ export async function mergeRun(options: MergeRunOptions): Promise<MergeReport> {
     return report;
   }
 
-  await prepareIntegrationBranch(run.repoPath, config.baseBranch, config.integrationBranch);
+  let initialBranch = '';
+  let stashed = false;
+  try {
+    const { stdout: branchOut } = await runGit(run.repoPath, ['branch', '--show-current']);
+    initialBranch = branchOut.trim();
+  } catch {}
 
-  for (const task of topoSort(run.plan.tasks)) {
-    const record = recordsById.get(task.id);
-    const status = record === undefined ? 'error' : asTaskStatus(record.status);
-    if (status !== 'passed') {
-      report.notMerged.push({ id: task.id, branch: task.branch, reason: status });
-      continue;
-    }
-
-    const beforeHead = await headCommit(run.repoPath);
+  const { stdout: statusOutput } = await runGit(run.repoPath, ['status', '--porcelain']);
+  if (statusOutput.trim().length > 0) {
     try {
-      await runGit(run.repoPath, ['merge', '--no-ff', '--no-edit', task.branch]);
-    } catch (error) {
-      const files = await conflictedFiles(run.repoPath);
-      await abortMergeQuietly(run.repoPath);
-      if (!(error instanceof GitCommandError)) {
-        throw error;
-      }
-      report.conflicts.push({ id: task.id, branch: task.branch, files });
-      continue;
-    }
-
-    const afterHead = await headCommit(run.repoPath);
-    const verification = await runVerification(config.verify, run.repoPath);
-    if (verification !== 0) {
-      if (afterHead !== beforeHead) {
-        await runGit(run.repoPath, ['reset', '--hard', 'HEAD~1']);
-      }
-      report.verifyFailed.push({ id: task.id, branch: task.branch, exitCode: verification });
-      continue;
-    }
-
-    report.merged.push({ id: task.id, branch: task.branch });
+      await runGit(run.repoPath, ['stash', 'push', '-u', '-m', `squad-merge-autostash-${Date.now()}`]);
+      stashed = true;
+    } catch {}
   }
 
-  return report;
+  try {
+    await prepareIntegrationBranch(run.repoPath, config.baseBranch, config.integrationBranch);
+
+    for (const task of topoSort(run.plan.tasks)) {
+      const record = recordsById.get(task.id);
+      const status = record === undefined ? 'error' : asTaskStatus(record.status);
+      if (status !== 'passed') {
+        report.notMerged.push({ id: task.id, branch: task.branch, reason: status });
+        continue;
+      }
+
+      const beforeHead = await headCommit(run.repoPath);
+      try {
+        await runGit(run.repoPath, ['merge', '--no-ff', '--no-edit', task.branch]);
+      } catch (error) {
+        const files = await conflictedFiles(run.repoPath);
+        await abortMergeQuietly(run.repoPath);
+        if (!(error instanceof GitCommandError)) {
+          throw error;
+        }
+        report.conflicts.push({ id: task.id, branch: task.branch, files });
+        continue;
+      }
+
+      const afterHead = await headCommit(run.repoPath);
+      const verification = await runVerification(config.verify, run.repoPath);
+      if (verification !== 0) {
+        if (afterHead !== beforeHead) {
+          await runGit(run.repoPath, ['reset', '--hard', 'HEAD~1']);
+        }
+        report.verifyFailed.push({ id: task.id, branch: task.branch, exitCode: verification });
+        continue;
+      }
+
+      report.merged.push({ id: task.id, branch: task.branch });
+    }
+
+    return report;
+  } finally {
+    if (stashed) {
+      if (initialBranch && initialBranch !== config.integrationBranch) {
+        try {
+          await runGit(run.repoPath, ['checkout', initialBranch]);
+        } catch {}
+      }
+      try {
+        await runGit(run.repoPath, ['stash', 'pop']);
+      } catch {}
+    }
+  }
 }
 
 async function prepareIntegrationBranch(
@@ -147,9 +176,12 @@ function runVerification(commands: string[], cwd: string): Promise<number> {
   }
 
   return new Promise((resolve) => {
-    const child = spawn(commands.join(' && '), [], {
+    const shell = resolveDefaultShell();
+    const command = commands.join(' && ');
+    const finalCommand = typeof shell === 'boolean' && shell ? adaptShellCommand(command, shell) : command;
+    const child = spawn(finalCommand, [], {
       cwd,
-      shell: true,
+      shell,
       windowsHide: true,
       stdio: 'ignore',
     });

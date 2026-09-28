@@ -30,6 +30,7 @@ interface HistoryViewProps {
   runError: string | null;
   onTaskCancelled: (taskId: string) => void;
   onRunStarted: (runId: string) => void;
+  onTaskRetried?: (taskId: string) => void;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
@@ -44,6 +45,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   runError,
   onTaskCancelled,
   onRunStarted,
+  onTaskRetried,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'done' | 'failed'>('all');
@@ -152,6 +154,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           repoId={repoId}
           onTaskCancelled={onTaskCancelled}
           onRunStarted={onRunStarted}
+          onTaskRetried={onTaskRetried || onRefresh}
         />
       </div>
     );

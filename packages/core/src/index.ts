@@ -83,6 +83,7 @@ export {
   SquadOrchestrator,
   type SquadOrchestratorOptions,
 } from './runner.js';
+export { resolveDefaultShell, adaptShellCommand } from './shell.js';
 export {
   SquadStore,
   type RunRecord,

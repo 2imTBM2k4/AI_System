@@ -324,14 +324,14 @@ ${'A'.repeat(500)}
     expect(writeRes.stderr.trim()).toBe('index.md is read-only for agents; edit it manually');
 
     // 2. append index.md
-    const appendRes = await execCli(['append', './index.md', 'some fact', '--by', 'pm'], {
+    const appendRes = await execCli(['append', 'index.md', 'some fact', '--by', 'pm'], {
       memoryDir,
     });
     expect(appendRes.code).not.toBe(0);
     expect(appendRes.stderr.trim()).toBe('index.md is read-only for agents; edit it manually');
 
     // 3. delete index.md
-    const deleteRes = await execCli(['delete', 'decisions/../index.md'], {
+    const deleteRes = await execCli(['delete', 'index.md'], {
       memoryDir,
     });
     expect(deleteRes.code).not.toBe(0);
@@ -349,7 +349,7 @@ ${'A'.repeat(500)}
     expect(writeOk.code).toBe(0);
 
     // 2. write roles/pm.md with --by dev (mismatch -> error)
-    const writeFail = await execCli(['write', 'Roles/pm.md', '--stdin', '--by', 'dev'], {
+    const writeFail = await execCli(['write', 'roles/pm.md', '--stdin', '--by', 'dev'], {
       memoryDir,
       stdin: roleDoc,
     });
@@ -364,5 +364,32 @@ ${'A'.repeat(500)}
     // 4. delete roles/pm.md with --by pm (success)
     const delOk = await execCli(['delete', 'roles/pm.md', '--by', 'pm'], { memoryDir });
     expect(delOk.code).toBe(0);
+  });
+
+  it('rejects non-allowlist write targets via CLI with non-zero exit code', async () => {
+    const doc = `---\nname: t\ndescription: d\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: pm\n---\n- test\n`;
+    const invalidTargets = [
+      'Roles/pm.md',
+      'ROLES/pm.md',
+      'roles\\pm.md',
+      './roles/pm.md',
+      './index.md',
+      'decisions/../index.md',
+      'roles/pm.md::$DATA',
+      'index.md.',
+      'index.md ',
+      'roles/pm.md.',
+      'decisions/a/b.md',
+      'notes/todo.md',
+    ];
+
+    for (const target of invalidTargets) {
+      const res = await execCli(['write', target, '--stdin', '--by', 'pm'], {
+        memoryDir,
+        stdin: doc,
+      });
+      expect(res.code).not.toBe(0);
+      expect(res.stderr).toContain('Invalid memory write target');
+    }
   });
 });

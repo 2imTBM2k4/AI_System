@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run",
+    "test": "tsc -b && vitest run",
     "test:stress": "vitest run --config vitest.stress.config.ts"
   },
   "dependencies": {

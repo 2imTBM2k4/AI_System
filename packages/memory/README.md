@@ -108,7 +108,40 @@ squad-mem end --task task-101 --role backend --done "Xong storage layer và unit
 
 ---
 
-## 4. Sử dụng TypeScript API
+## 4. Quy tắc kiểm soát quyền ghi & Allowlist đường dẫn
+
+Hệ thống bộ nhớ áp dụng cơ chế bảo vệ phân quyền chặt chẽ ở cả tầng TypeScript API và CLI:
+
+### Allowlist đường dẫn ghi (Write Path Allowlist)
+Mọi thao tác ghi (`write`, `append`, `delete`) chỉ chấp nhận đúng 2 định dạng hợp lệ:
+1. **`index.md`**: Đại diện cho quy ước dài hạn của dự án do chủ dự án quản trị. Mọi thao tác ghi/sửa/xóa từ agent đều bị từ chối tuyệt đối với thông báo:
+   ```text
+   index.md is read-only for agents; edit it manually
+   ```
+   (Exit code khác 0, không có tùy chọn bypass).
+2. **`<decisions|roles|tasks>/<id>.md`**:
+   - Tên thư mục bắt buộc viết thường chính xác: `decisions`, `roles`, hoặc `tasks`.
+   - `<id>` bắt buộc tuân theo whitelist `[A-Za-z0-9_-]`, độ dài tối đa 64 ký tự, và không trùng tên thiết bị cấm trên Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1..9`, `LPT1..9`).
+   - Đuôi file bắt buộc là `.md`.
+
+**Mọi dạng đường dẫn khác đều bị từ chối**:
+- Thư mục viết hoa hoặc lẫn chữ hoa: `Roles/pm.md`, `ROLES/pm.md`, `Decisions/d1.md`.
+- Dấu chấm/nhảy thư mục tương đối: `./roles/pm.md`, `roles/./pm.md`, `decisions/../index.md`, `./index.md`.
+- Dấu gạch chéo ngược Windows: `roles\pm.md`, `decisions\d1.md`.
+- Ký tự NTFS Alternate Data Stream: `roles/pm.md::$DATA`.
+- Ký tự kết thúc bằng dấu chấm hoặc khoảng trắng: `index.md.`, `index.md `, `roles/pm.md.`.
+- Thư mục lồng nhau hoặc tùy ý: `decisions/a/b.md`, `notes/todo.md`.
+
+Đường dẫn ghi thật trên đĩa được sinh ra từ chính canonical path đã qua allowlist (không sử dụng trực tiếp chuỗi do người dùng/agent nhập). Các thao tác đọc (`read`, `list`, `search`, `start`) không bị chặn bởi allowlist này.
+
+### Kiểm soát vai trò `--by` cho `roles/<x>.md`
+- Thao tác `write`, `append`, `delete` vào `roles/<x>.md` bắt buộc phải có `--by <agent>`.
+- Chỉ cho phép chỉnh sửa nếu `--by` trùng khớp với `<x>` (ví dụ: `roles/pm.md` chỉ có thể được ghi bởi `--by pm`). Mọi hành vi ghi chéo vai trò đều bị từ chối.
+- Các tài liệu trong `decisions/` và `tasks/` không bị ràng buộc bởi quy tắc `--by`.
+
+---
+
+## 5. Sử dụng TypeScript API
 
 Có thể import trực tiếp vào backend/orchestrator:
 
@@ -159,7 +192,7 @@ await endSession({
 
 ---
 
-## 5. Cơ chế an toàn và Hạn chế (Safety & Limitations)
+## 6. Cơ chế an toàn và Hạn chế (Safety & Limitations)
 
 - **Atomic Writes**: Ghi vào file tạm `.tmp` cùng thư mục rồi đổi tên (`rename`), ngăn chặn tình trạng file nửa vời do crash giữa chừng.
 - **Path Traversal Protection**: `resolveSafePath` chặn triệt để `../`, đường dẫn tuyệt đối, và symlink/junction trỏ ra ngoài root memory.

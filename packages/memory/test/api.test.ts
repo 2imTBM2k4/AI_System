@@ -10,6 +10,7 @@ import {
   listMemories,
   searchMemory,
   deleteMemory,
+  inferScopeFromRelPath,
   MemoryDoc,
   MemoryParseError,
 } from '../src/index.js';
@@ -239,20 +240,14 @@ describe('Memory API (T3)', () => {
     expect(doc!.content).toContain('Appended fact to CRLF file');
   });
 
-  it('requires explicit scope for non-standard paths and rejects missing scope per Decision (d)', async () => {
-    await expect(
-      appendMemory('custom/random.md', 'Some fact', { updatedBy: 'agent' }, { memoryDir })
-    ).rejects.toThrowError(/Cannot infer memory scope for non-standard path 'custom\/random\.md'/);
-
-    await appendMemory(
-      'custom/random.md',
-      'Some fact',
-      { updatedBy: 'agent', scope: 'project' },
-      { memoryDir }
+  it('requires explicit scope for non-standard paths and rejects missing scope in inferScopeFromRelPath', () => {
+    expect(() => inferScopeFromRelPath('custom/random.md')).toThrowError(
+      /Cannot infer memory scope for non-standard path 'custom\/random\.md'/
     );
-    const doc = await readMemory('custom/random.md', { memoryDir });
-    expect(doc).not.toBeNull();
-    expect(doc!.frontmatter.scope).toBe('project');
+    expect(inferScopeFromRelPath('tasks/t1.md')).toBe('task');
+    expect(inferScopeFromRelPath('roles/pm.md')).toBe('role');
+    expect(inferScopeFromRelPath('decisions/d1.md')).toBe('project');
+    expect(inferScopeFromRelPath('index.md')).toBe('project');
   });
 
   it('ignores .lock and .tmp files during listMemories and searchMemory without false warnings', async () => {

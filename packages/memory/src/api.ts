@@ -42,18 +42,93 @@ export interface NormalizedMemoryPath {
   lowerRelPath: string;
 }
 
+export interface AllowedWriteTarget {
+  fullPath: string;
+  relPath: string;
+  collection?: 'decisions' | 'roles' | 'tasks';
+  id?: string;
+  isIndex: boolean;
+}
+
 /**
- * Resolves and normalizes a relative memory path against root.
- * Computes root-relative path with POSIX forward slashes and lowercases it
- * for case-insensitive permission checks.
+ * Validates target write path against the strict write allowlist:
+ * (a) "index.md" (which is subsequently rejected as read-only)
+ * (b) "<decisions|roles|tasks>/<id>.md" where directory is exact lowercase,
+ *     <id> passes validateIdentifier [A-Za-z0-9_-] (max 64 chars), and extension is strictly ".md".
+ *
+ * Rejects any non-conforming shapes including:
+ * - uppercase or mixed-case directory (Roles/pm.md, ROLES/pm.md)
+ * - relative hops or dot segments (./roles/pm.md, roles/./pm.md, decisions/../x.md)
+ * - backslashes (roles\pm.md)
+ * - NTFS alternate data streams (roles/pm.md::$DATA)
+ * - trailing dots or spaces ("index.md.", "index.md ", "roles/pm.md.")
+ * - nested directories (decisions/a/b.md)
+ * - arbitrary directories (notes/x.md)
+ *
+ * Real write operations strictly use the canonical path produced by this allowlist.
  */
-export function normalizeMemoryPath(root: string, relPath: string): NormalizedMemoryPath {
-  const fullPath = resolveSafePath(root, relPath);
-  const relative = path.relative(root, fullPath).replace(/\\/g, '/');
+export function validateWriteTarget(root: string, relPath: string): AllowedWriteTarget {
+  if (typeof relPath !== 'string' || relPath.length === 0) {
+    throw new Error(
+      'Invalid memory write target: target path must be a non-empty string. Allowed targets are "index.md" or "<decisions|roles|tasks>/<id>.md".'
+    );
+  }
+
+  // Reject NTFS alternate data streams, backslashes, leading/trailing whitespace, trailing dots, leading slashes
+  if (
+    relPath.includes('\\') ||
+    relPath.includes('::$DATA') ||
+    relPath.endsWith('.') ||
+    relPath.endsWith(' ') ||
+    relPath.startsWith(' ') ||
+    relPath.startsWith('/')
+  ) {
+    throw new Error(
+      `Invalid memory write target "${relPath}". Allowed targets are strictly "index.md" (read-only) or "<decisions|roles|tasks>/<id>.md" with lowercase directory, valid identifier [A-Za-z0-9_-], and exact ".md" extension.`
+    );
+  }
+
+  // Shape (a): exact match "index.md"
+  if (relPath === 'index.md') {
+    const canonicalRelPath = 'index.md';
+    return {
+      fullPath: resolveSafePath(root, canonicalRelPath),
+      relPath: canonicalRelPath,
+      isIndex: true,
+    };
+  }
+
+  // Shape (b): exact match "<decisions|roles|tasks>/<id>.md"
+  const parts = relPath.split('/');
+  if (parts.length !== 2) {
+    throw new Error(
+      `Invalid memory write target "${relPath}". Allowed targets are strictly "index.md" (read-only) or "<decisions|roles|tasks>/<id>.md" with lowercase directory, valid identifier [A-Za-z0-9_-], and exact ".md" extension.`
+    );
+  }
+
+  const [dir, filename] = parts;
+  if (dir !== 'decisions' && dir !== 'roles' && dir !== 'tasks') {
+    throw new Error(
+      `Invalid memory write target "${relPath}". Directory "${dir}" is not permitted. Allowed directories are strictly "decisions", "roles", or "tasks".`
+    );
+  }
+
+  if (!filename.endsWith('.md')) {
+    throw new Error(
+      `Invalid memory write target "${relPath}". File extension must be strictly ".md".`
+    );
+  }
+
+  const id = filename.slice(0, -3);
+  validateIdentifier(id, `${dir} id`);
+
+  const canonicalRelPath = `${dir}/${id}.md`;
   return {
-    fullPath,
-    relPath: relative,
-    lowerRelPath: relative.toLowerCase(),
+    fullPath: resolveSafePath(root, canonicalRelPath),
+    relPath: canonicalRelPath,
+    collection: dir,
+    id,
+    isIndex: false,
   };
 }
 
@@ -61,29 +136,28 @@ export function normalizeMemoryPath(root: string, relPath: string): NormalizedMe
  * Enforces permission rules on writing/appending/deleting memory files:
  * 1. index.md is strictly read-only for agents.
  * 2. roles/<x>.md can only be modified when by == <x>.
+ * 3. decisions/ and tasks/ are unrestricted with regard to --by.
  */
 function enforceWritePermissions(
-  target: NormalizedMemoryPath,
+  target: AllowedWriteTarget,
   operation: 'write' | 'append' | 'delete',
   by?: string
 ): void {
   // Rule 1: index.md is read-only for agents
-  if (target.lowerRelPath === 'index.md') {
+  if (target.isIndex) {
     throw new Error('index.md is read-only for agents; edit it manually');
   }
 
   // Rule 2: roles/<x>.md can only be modified when by == <x>
-  if (target.lowerRelPath.startsWith('roles/')) {
-    const roleTarget = path.basename(target.lowerRelPath, path.extname(target.lowerRelPath));
-    validateIdentifier(roleTarget, 'role');
+  if (target.collection === 'roles' && target.id) {
     if (!by || by.trim().length === 0) {
-      throw new Error(`Agent identity (--by) is required to ${operation} role memory 'roles/${roleTarget}.md'`);
+      throw new Error(`Agent identity (--by) is required to ${operation} role memory 'roles/${target.id}.md'`);
     }
     validateIdentifier(by, 'updatedBy / agent');
     const opText = operation === 'delete' ? 'delete' : `${operation} to`;
-    if (by.toLowerCase() !== roleTarget.toLowerCase()) {
+    if (by.toLowerCase() !== target.id.toLowerCase()) {
       throw new Error(
-        `Permission denied: agent '${by}' cannot ${opText} 'roles/${roleTarget}.md'. Only role '${roleTarget}' is permitted.`
+        `Permission denied: agent '${by}' cannot ${opText} 'roles/${target.id}.md'. Only role '${target.id}' is permitted.`
       );
     }
   }
@@ -213,8 +287,8 @@ export async function writeMemory(
   options?: WriteMemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const target = normalizeMemoryPath(root, relPath);
-  const by = options?.by || doc.frontmatter.updatedBy;
+  const target = validateWriteTarget(root, relPath);
+  const by = options?.by !== undefined ? options.by : doc.frontmatter.updatedBy;
   enforceWritePermissions(target, 'write', by);
 
   const raw = serializeMemory(doc);
@@ -244,7 +318,7 @@ export async function appendMemory(
   options?: MemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const target = normalizeMemoryPath(root, relPath);
+  const target = validateWriteTarget(root, relPath);
   enforceWritePermissions(target, 'append', meta.updatedBy);
 
   await withFileLock(
@@ -424,7 +498,7 @@ export async function deleteMemory(
   options?: DeleteMemoryOptions
 ): Promise<void> {
   const root = getMemoryDir(options?.memoryDir);
-  const target = normalizeMemoryPath(root, relPath);
+  const target = validateWriteTarget(root, relPath);
   enforceWritePermissions(target, 'delete', options?.by);
 
   if (!existsSync(target.fullPath)) {

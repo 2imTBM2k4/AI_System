@@ -156,8 +156,13 @@ await endSession({
 
 ---
 
-## 5. Cơ chế an toàn (Safety Guarantees)
+## 5. Cơ chế an toàn và Hạn chế (Safety & Limitations)
 
 - **Atomic Writes**: Ghi vào file tạm `.tmp` cùng thư mục rồi đổi tên (`rename`), ngăn chặn tình trạng file nửa vời do crash giữa chừng.
 - **Path Traversal Protection**: `resolveSafePath` chặn triệt để `../`, đường dẫn tuyệt đối, và symlink/junction trỏ ra ngoài root memory.
-- **Cross-process Locking**: Cơ chế `withFileLock` sử dụng cờ `open('wx')` với PID staleness detection và xử lý contention tương thích Windows/POSIX, hỗ trợ an toàn khi 10+ OS process cùng ghi đồng thời.
+- **Cross-process Locking**: Cơ chế `withFileLock` sử dụng cờ `open('wx')` với PID staleness detection và xử lý contention tương thích Windows/POSIX, hỗ trợ an toàn khi nhiều OS process cùng ghi đồng thời.
+- **Bảo vệ Token khi Release**: Mỗi lock file chứa một UUID token duy nhất. Tiến trình chỉ xóa lock file nếu token trong file khớp với token ban đầu của mình, tránh việc tiến trình giữ lock quá lâu vô tình xóa mất lock mới của tiến trình khác sau khi bị cướp lock.
+- **Hạn chế quan trọng: Stale theo tuổi khi tiến trình còn sống vi phạm loại trừ lẫn nhau (Mutual Exclusion Violation)**:
+  - Nếu một tiến trình giữ lock thực hiện tác vụ quá lâu (vượt quá `staleMs`, mặc định 30 giây) hoặc bị đóng băng tạm thời (GC pause dài, I/O tắc nghẽn) nhưng PID vẫn còn sống, cơ chế stale detection sẽ coi lock này đã hết hạn và cho phép một tiến trình khác cướp quyền (reclaim) để tránh treo hệ thống (deadlock).
+  - **Hạn chế kỹ thuật**: Hành vi này chấp nhận đánh đổi và **vi phạm nguyên lý loại trừ lẫn nhau (mutual exclusion)** nếu tiến trình ban đầu tỉnh dậy và tiếp tục thực hiện ghi đĩa cùng lúc với tiến trình mới.
+  - **Khuyến nghị**: Mọi tác vụ nằm bên trong `withFileLock` (như appendMemory, update frontmatter) phải là các tác vụ CPU/Disk I/O cục bộ cực nhanh (< 1-2 giây), không được nhúng các network call chậm hoặc tác vụ người dùng/agent suy luận kéo dài vào trong scope lock.

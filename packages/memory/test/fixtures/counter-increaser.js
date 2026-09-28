@@ -6,11 +6,13 @@ const args = process.argv.slice(2);
 let filePath = '';
 let workerId = '';
 let iterations = 10;
+let retryInterval = 10;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--file') filePath = args[++i];
   if (args[i] === '--id') workerId = args[++i];
   if (args[i] === '--iterations') iterations = parseInt(args[++i], 10);
+  if (args[i] === '--retry') retryInterval = parseInt(args[++i], 10);
 }
 
 if (!filePath || !workerId) {
@@ -30,7 +32,7 @@ async function run() {
         const next = current + 1;
         await atomicWrite(filePath, String(next));
       },
-      { timeoutMs: 25000, retryIntervalMs: 20 }
+      { timeoutMs: 30000, retryIntervalMs: retryInterval }
     );
   }
 }

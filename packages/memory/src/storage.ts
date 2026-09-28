@@ -259,9 +259,16 @@ export async function withFileLock<T>(
       // Lock file already exists, inspect for staleness
       try {
         let isStale = false;
+        let staleToken: string | undefined = undefined;
+        let staleAcquiredAt: number | undefined = undefined;
+        let stalePid: number | undefined = undefined;
+        let staleMtimeMs: number | undefined = undefined;
         try {
           const raw = await readFile(lockPath, 'utf8');
           const payload = JSON.parse(raw) as LockPayload;
+          staleToken = payload.token;
+          staleAcquiredAt = payload.acquiredAt;
+          stalePid = payload.pid;
           const age = Date.now() - (payload.acquiredAt || 0);
 
           if (age > staleMs) {
@@ -273,14 +280,40 @@ export async function withFileLock<T>(
         } catch {
           // If reading/parsing fails, check file modification time
           const fileStat = await stat(lockPath);
+          staleMtimeMs = fileStat.mtimeMs;
           if (Date.now() - fileStat.mtimeMs > staleMs) {
             isStale = true;
           }
         }
 
         if (isStale) {
-          // Remove stale lock and attempt retry immediately
-          await unlink(lockPath).catch(() => {});
+          // Verify token, payload or mtime before unlinking to prevent deleting a fresh lock
+          // acquired by another process that won the reclamation race
+          try {
+            if (staleToken) {
+              const checkRaw = await readFile(lockPath, 'utf8');
+              const checkPayload = JSON.parse(checkRaw) as LockPayload;
+              if (checkPayload.token === staleToken) {
+                await unlink(lockPath).catch(() => {});
+              }
+            } else if (staleAcquiredAt !== undefined || stalePid !== undefined) {
+              const checkRaw = await readFile(lockPath, 'utf8');
+              const checkPayload = JSON.parse(checkRaw) as LockPayload;
+              if (
+                checkPayload.acquiredAt === staleAcquiredAt &&
+                checkPayload.pid === stalePid
+              ) {
+                await unlink(lockPath).catch(() => {});
+              }
+            } else if (staleMtimeMs !== undefined) {
+              const checkStat = await stat(lockPath);
+              if (checkStat.mtimeMs === staleMtimeMs) {
+                await unlink(lockPath).catch(() => {});
+              }
+            }
+          } catch {
+            // Lock was already removed or rewritten by another process
+          }
         }
       } catch {
         // Stat/unlink failed (maybe removed by another process), retry next loop

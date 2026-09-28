@@ -6,6 +6,8 @@ node_modules/
 .squad/*
 !.squad/memory/
 .squad/memory/tasks/*
+.squad/memory/**/*.tmp
+.squad/memory/**/*.lock
 
 # Production build outputs
 dist/

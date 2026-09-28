@@ -178,6 +178,9 @@ export async function withFileLock<T>(
 
   while (!acquired) {
     try {
+      // Ensure directory exists in case of concurrent directory operations
+      await mkdir(dir, { recursive: true });
+
       // Attempt atomic creation of the lock file
       const handle = await open(lockPath, 'wx');
       const payload: LockPayload = {
@@ -190,8 +193,21 @@ export async function withFileLock<T>(
       acquired = true;
       break;
     } catch (err: any) {
-      if (err.code !== 'EEXIST') {
-        throw err;
+      // On Windows, STATUS_DELETE_PENDING or simultaneous file sharing contention
+      // manifests as EPERM or EACCES. Treat them as contention and retry.
+      const isContention =
+        err.code === 'EEXIST' ||
+        err.code === 'EPERM' ||
+        err.code === 'EACCES' ||
+        err.code === 'EBUSY';
+
+      if (!isContention) {
+        if (err.code === 'ENOENT') {
+          // Parent dir was momentarily absent; retry next loop
+          await mkdir(dir, { recursive: true }).catch(() => {});
+        } else {
+          throw err;
+        }
       }
 
       // Lock file already exists, inspect for staleness

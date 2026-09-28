@@ -3,7 +3,9 @@ node_modules/
 .pnpm-store/
 
 # Squad runtime state & SQLite databases
-.squad/
+.squad/*
+!.squad/memory/
+.squad/memory/tasks/*
 
 # Production build outputs
 dist/

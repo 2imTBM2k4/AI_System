@@ -38,7 +38,7 @@ const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
  * @param fieldName - Name of the field for error reporting (e.g. 'taskId', 'role', 'name').
  * @throws InvalidIdentifierError if validation fails.
  */
-export function validateIdentifier(id: unknown, fieldName: 'taskId' | 'role' | 'name'): string {
+export function validateIdentifier(id: unknown, fieldName: 'taskId' | 'role' | 'name' | 'updatedBy' | 'agent' | string): string {
   if (typeof id !== 'string' || id.trim().length === 0) {
     throw new InvalidIdentifierError(`${fieldName} must be a non-empty string`, String(id));
   }

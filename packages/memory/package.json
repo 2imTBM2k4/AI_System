@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/stress.test.ts'",
+    "test:stress": "vitest run test/stress.test.ts"
   },
   "dependencies": {
     "commander": "^13.1.0",

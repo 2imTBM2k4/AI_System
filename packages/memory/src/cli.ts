@@ -71,6 +71,10 @@ program
   .option('--scope <scope>', 'Memory scope: project, role, task')
   .action(async (relPath: string, line: string, opts: { by: string; name?: string; description?: string; scope?: string }) => {
     try {
+      if (!opts.by || opts.by.trim().length === 0) {
+        process.stderr.write('Error appending memory: --by cannot be empty\n');
+        process.exit(1);
+      }
       await appendMemory(relPath, line, {
         updatedBy: opts.by,
         name: opts.name,

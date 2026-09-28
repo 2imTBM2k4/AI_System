@@ -5,6 +5,7 @@ import matter from 'gray-matter';
 import { MemoryDoc, MemoryFrontmatter, MemoryScope, MemoryParseError } from './types.js';
 import { parseMemory, serializeMemory } from './parser.js';
 import { resolveSafePath, atomicWrite, withFileLock } from './storage.js';
+import { validateIdentifier } from './security.js';
 
 /**
  * Options for memory operations.
@@ -171,6 +172,19 @@ export async function appendMemory(
   const root = getMemoryDir(options?.memoryDir);
   const fullPath = resolveSafePath(root, relPath);
 
+  // Enforcement: Only role <x> can append to roles/<x>.md
+  const normalized = relPath.replace(/\\/g, '/');
+  if (normalized.startsWith('roles/')) {
+    const roleTarget = path.basename(normalized, path.extname(normalized));
+    validateIdentifier(roleTarget, 'role');
+    validateIdentifier(meta.updatedBy, 'updatedBy');
+    if (meta.updatedBy !== roleTarget) {
+      throw new Error(
+        `Permission denied: agent '${meta.updatedBy}' cannot append to 'roles/${roleTarget}.md'. Only role '${roleTarget}' is permitted.`
+      );
+    }
+  }
+
   await withFileLock(
     fullPath,
     async () => {
@@ -230,7 +244,13 @@ async function getMarkdownFilesRecursively(dir: string): Promise<string[]> {
     if (entry.isDirectory()) {
       const sub = await getMarkdownFilesRecursively(full);
       results.push(...sub);
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+    } else if (
+      entry.isFile() &&
+      entry.name.endsWith('.md') &&
+      !entry.name.endsWith('.tmp') &&
+      !entry.name.endsWith('.lock') &&
+      !entry.name.startsWith('.')
+    ) {
       results.push(full);
     }
   }

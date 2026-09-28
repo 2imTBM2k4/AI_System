@@ -116,9 +116,9 @@ updatedBy: architect
     );
     expect(appRes1.code).toBe(0);
 
-    // 2. Append into role note
+    // 2. Append into role note (matching role per Decision)
     const appRes2 = await execCli(
-      ['append', 'roles/tester.md', 'Testing Fact: Concurrency needs real processes', '--by', 'qa-agent'],
+      ['append', 'roles/tester.md', 'Testing Fact: Concurrency needs real processes', '--by', 'tester'],
       { memoryDir }
     );
     expect(appRes2.code).toBe(0);
@@ -247,4 +247,67 @@ $doc | node "${CLI_PATH.replace(/\\/g, '\\\\')}" write decisions/pwsh-test.md --
     expect(readRes.stdout).toContain('Thực thi đường ống PowerShell thành công 🚀');
     expect(readRes.stdout).toContain('Bảo đảm toàn vẹn mã hóa UTF-8 🛡️');
   }, 15000);
+
+  it('enforces append role permissions in CLI: allowed when --by matches role, rejected when mismatch or empty', async () => {
+    // 1. Correct --by: pm appends to roles/pm.md
+    const okRes = await execCli(
+      ['append', 'roles/pm.md', 'Valid PM note', '--by', 'pm'],
+      { memoryDir }
+    );
+    expect(okRes.code).toBe(0);
+
+    // 2. Mismatched --by: dev appends to roles/pm.md
+    const failRes = await execCli(
+      ['append', 'roles/pm.md', 'Invalid intruder note', '--by', 'dev'],
+      { memoryDir }
+    );
+    expect(failRes.code).not.toBe(0);
+    expect(failRes.stderr).toContain("Permission denied: agent 'dev' cannot append to 'roles/pm.md'. Only role 'pm' is permitted.");
+
+    // 3. Empty --by: rejects with clear error
+    const emptyRes = await execCli(
+      ['append', 'roles/pm.md', 'Empty by note', '--by', ''],
+      { memoryDir }
+    );
+    expect(emptyRes.code).not.toBe(0);
+    expect(emptyRes.stderr).toContain('--by cannot be empty');
+
+    // 4. Tasks and decisions are NOT restricted by this rule
+    const taskRes = await execCli(
+      ['append', 'tasks/task-001.md', 'Task update', '--by', 'dev'],
+      { memoryDir }
+    );
+    expect(taskRes.code).toBe(0);
+
+    const decisionRes = await execCli(
+      ['append', 'decisions/auth.md', 'Decision update', '--by', 'dev'],
+      { memoryDir }
+    );
+    expect(decisionRes.code).toBe(0);
+  });
+
+  it('emits warning to stderr and truncates index.md in stdout when index.md alone exceeds maxChars', async () => {
+    const longIndex = `---
+name: index
+description: Massive index document
+scope: project
+updatedAt: "2026-09-28T00:00:00.000Z"
+updatedBy: architect
+---
+${'A'.repeat(500)}
+`;
+    await execCli(['write', 'index.md', '--stdin'], { memoryDir, stdin: longIndex });
+
+    const maxChars = 250;
+    const res = await execCli(
+      ['start', '--task', 'task-100', '--role', 'architect', '--max-chars', maxChars.toString()],
+      { memoryDir }
+    );
+
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('[... Truncated index.md exceeding maxChars ...]');
+    expect(res.stdout.trim().length).toBeLessThanOrEqual(maxChars);
+    expect(res.stderr).toContain('Warning: index.md exceeds maxChars limit');
+    expect(res.stderr).toContain(`maxChars: ${maxChars}`);
+  });
 });

@@ -250,4 +250,54 @@ describe('Memory API (T3)', () => {
     expect(doc).not.toBeNull();
     expect(doc!.frontmatter.scope).toBe('project');
   });
+
+  it('ignores .lock and .tmp files during listMemories and searchMemory without false warnings', async () => {
+    // 1. Create a valid markdown memory file
+    await appendMemory('decisions/arch.md', 'Architecture decision content', { updatedBy: 'architect' }, { memoryDir });
+
+    // 2. Plant .lock and .tmp files alongside
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    const decisionsDir = path.join(memoryDir, 'decisions');
+    mkdirSync(decisionsDir, { recursive: true });
+
+    writeFileSync(path.join(decisionsDir, 'arch.md.lock'), '{"token":"123","pid":456}', 'utf8');
+    writeFileSync(path.join(decisionsDir, '.arch.md.999.tmp'), 'raw temp content with SecretKeyword', 'utf8');
+    writeFileSync(path.join(decisionsDir, 'temp-file.md.tmp'), 'corrupted temp data with SecretKeyword', 'utf8');
+
+    // 3. Spy on console.warn to verify NO false warnings are emitted
+    const warnSpy = vi.spyOn(console, 'warn');
+
+    const list = await listMemories(undefined, { memoryDir });
+    expect(list.length).toBe(1);
+    expect(list[0].path).toBe('decisions/arch.md');
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    // 4. searchMemory must ignore keywords inside .tmp and .lock files
+    const searchRes = await searchMemory('SecretKeyword', { memoryDir });
+    expect(searchRes.length).toBe(0);
+
+    warnSpy.mockRestore();
+  });
+
+  it('enforces role write permission: only role <x> can append to roles/<x>.md', async () => {
+    // Correct --by: pm can append to roles/pm.md
+    await appendMemory('roles/pm.md', 'PM responsibility note', { updatedBy: 'pm' }, { memoryDir });
+    const pmDoc = await readMemory('roles/pm.md', { memoryDir });
+    expect(pmDoc).not.toBeNull();
+    expect(pmDoc!.content).toContain('PM responsibility note');
+
+    // Different --by: dev cannot append to roles/pm.md
+    await expect(
+      appendMemory('roles/pm.md', 'Intruder note', { updatedBy: 'dev' }, { memoryDir })
+    ).rejects.toThrowError(/Permission denied: agent 'dev' cannot append to 'roles\/pm\.md'/);
+
+    // Other paths are not restricted by this rule
+    await appendMemory('tasks/task-002.md', 'Task progress by dev', { updatedBy: 'dev' }, { memoryDir });
+    await appendMemory('decisions/api-design.md', 'API design decision by dev', { updatedBy: 'dev' }, { memoryDir });
+
+    const taskDoc = await readMemory('tasks/task-002.md', { memoryDir });
+    const decisionDoc = await readMemory('decisions/api-design.md', { memoryDir });
+    expect(taskDoc!.content).toContain('Task progress by dev');
+    expect(decisionDoc!.content).toContain('API design decision by dev');
+  });
 });

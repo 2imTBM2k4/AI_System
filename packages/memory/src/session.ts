@@ -80,7 +80,11 @@ export async function startSession(
 
   // Case: index.md alone exceeds maxChars
   const indexHeader = '## Project Conventions (index.md)\n';
-  if (indexContent.length > 0 && (indexHeader.length + indexContent.length) > maxChars) {
+  const totalIndexLen = indexHeader.length + indexContent.length;
+  if (indexContent.length > 0 && totalIndexLen > maxChars) {
+    process.stderr.write(
+      `Warning: index.md exceeds maxChars limit (actual length: ${totalIndexLen} chars, maxChars: ${maxChars}). Truncating end of index.md.\n`
+    );
     const budgetForIndex = maxChars - (indexHeader.length + INDEX_TRUNCATION_MARKER.length + 2);
     if (budgetForIndex > 0) {
       const truncatedIndex = safeSlice(indexContent, 0, budgetForIndex);

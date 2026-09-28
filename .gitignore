@@ -6,6 +6,7 @@ node_modules/
 .squad/*
 !.squad/memory/
 .squad/memory/tasks/*
+.squad/memory/roles/*
 .squad/memory/**/*.tmp
 .squad/memory/**/*.lock
 

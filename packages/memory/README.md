@@ -12,11 +12,14 @@ Thư mục lưu trữ mặc định: `<repo>/.squad/memory/` (hoặc cấu hình
 
 ```text
 .squad/memory/
-  index.md                 # Long-term: Tổng quan, quy ước chung toàn squad
-  decisions/<slug>.md      # Long-term: Mỗi quyết định kiến trúc / kỹ thuật 1 file
-  roles/<role>.md          # Role notes: Bài học kinh nghiệm riêng của từng role
-  tasks/<taskId>.md        # Session state: Trạng thái và tiến độ của từng task
+  index.md                 # Long-term: Tổng quan, quy ước chung toàn squad [Tracked trong Git]
+  decisions/<slug>.md      # Long-term: Mỗi quyết định kiến trúc / kỹ thuật 1 file [Tracked trong Git]
+  roles/<role>.md          # Role notes: Bài học kinh nghiệm riêng của từng role [Ignored trong Git]
+  tasks/<taskId>.md        # Session state: Trạng thái và tiến độ của từng task [Ignored trong Git]
 ```
+
+> **Quy ước đồng bộ Git (Quyết định D3 đã chốt)**:
+> Chỉ commit `index.md` và `decisions/` lên Git để lưu giữ tri thức kiến trúc chung. Thư mục `tasks/` (trạng thái runtime ngắn hạn) và `roles/` (bài học cá nhân của từng agent) được cấu hình loại trừ trong `.gitignore`.
 
 Mỗi file Markdown đều có YAML frontmatter chuẩn:
 ```yaml
@@ -166,3 +169,6 @@ await endSession({
   - Nếu một tiến trình giữ lock thực hiện tác vụ quá lâu (vượt quá `staleMs`, mặc định 30 giây) hoặc bị đóng băng tạm thời (GC pause dài, I/O tắc nghẽn) nhưng PID vẫn còn sống, cơ chế stale detection sẽ coi lock này đã hết hạn và cho phép một tiến trình khác cướp quyền (reclaim) để tránh treo hệ thống (deadlock).
   - **Hạn chế kỹ thuật**: Hành vi này chấp nhận đánh đổi và **vi phạm nguyên lý loại trừ lẫn nhau (mutual exclusion)** nếu tiến trình ban đầu tỉnh dậy và tiếp tục thực hiện ghi đĩa cùng lúc với tiến trình mới.
   - **Khuyến nghị**: Mọi tác vụ nằm bên trong `withFileLock` (như appendMemory, update frontmatter) phải là các tác vụ CPU/Disk I/O cục bộ cực nhanh (< 1-2 giây), không được nhúng các network call chậm hoặc tác vụ người dùng/agent suy luận kéo dài vào trong scope lock.
+- **Khoảng hở TOCTOU (Time-Of-Check to Time-Of-Use) khi dọn Stale Lock**:
+  - Khi một tiến trình phát hiện lock file đã stale tại thời điểm kiểm tra (TOC) và chuẩn bị gọi `unlink` để dọn dẹp, hệ thống đã đọc lại file để đối chiếu token nhằm tránh xóa nhầm lock mới.
+  - Tuy nhiên, trên hệ thống tập tin cục bộ không có thao tác nguyên tử (atomic compare-and-swap delete) ở cấp kernel, vẫn tồn tại một khoảng hở nano/micro-giây (TOCTOU) giữa lần đọc đối chiếu token cuối cùng và lệnh `unlink`. Nếu một tiến trình khác cướp lock và ghi file thành công đúng trong tích tắc này, lệnh `unlink` vẫn có thể xóa nhầm lock mới đó. Đây là giới hạn cố hữu của cơ chế lock dựa trên file thuần túy không có tiến trình điều phối trung tâm (daemon).

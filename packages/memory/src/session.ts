@@ -1,4 +1,8 @@
-import { readMemory, appendMemory, MemoryOptions } from './api.js';
+import { readdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import * as path from 'node:path';
+import { readMemory, appendMemory, getMemoryDir, MemoryOptions } from './api.js';
+import { parseMemory } from './parser.js';
 import { validateIdentifier } from './security.js';
 
 export interface StartSessionParams {
@@ -50,16 +54,58 @@ export function safeSlice(str: string, start: number, end?: number): string {
 }
 
 /**
+ * Loads and builds decisions index lines from decisions/*.md documents.
+ * Skips .lock, .tmp, and corrupted files.
+ */
+async function loadDecisionsIndexLines(memoryDir?: string): Promise<string[]> {
+  const root = getMemoryDir(memoryDir);
+  const decisionsDir = path.join(root, 'decisions');
+  if (!existsSync(decisionsDir)) {
+    return [];
+  }
+
+  let entries: string[];
+  try {
+    entries = await readdir(decisionsDir);
+  } catch {
+    return [];
+  }
+
+  const mdFiles = entries
+    .filter((f) => f.endsWith('.md') && !f.endsWith('.lock') && !f.endsWith('.tmp') && !f.startsWith('.'))
+    .sort((a, b) => a.localeCompare(b));
+
+  const lines: string[] = [];
+  for (const file of mdFiles) {
+    try {
+      const fullPath = path.join(decisionsDir, file);
+      const raw = await readFile(fullPath, 'utf8');
+      const doc = parseMemory(raw, `decisions/${file}`);
+      const name = doc.frontmatter.name?.trim() || path.basename(file, '.md');
+      const desc = doc.frontmatter.description?.trim() || '';
+      lines.push(`- ${name}: ${desc}`);
+    } catch {
+      // Ignore unparseable or corrupted decision files
+    }
+  }
+
+  return lines;
+}
+
+/**
  * Builds the runtime context string for an agent starting a task.
  * Reads in order:
  * 1. index.md (project conventions)
  * 2. roles/<role>.md (role-specific learnings)
- * 3. tasks/<taskId>.md (current task state)
+ * 3. Decisions index (decisions/*.md summary list)
+ * 4. tasks/<taskId>.md (current task state)
  *
  * Enforces strict security validation on taskId and role.
- * If content exceeds maxChars:
- * - If index.md alone exceeds maxChars: truncates the end of index.md per agreed decision.
- * - Otherwise: truncates the oldest part of the task state first, preserving index.md intact.
+ * When exceeding maxChars:
+ * - If index.md alone exceeds maxChars: truncates the end of index.md with warning.
+ * - Otherwise: truncates Decisions index (from the end) first;
+ *   if still exceeding, truncates the oldest part of task state;
+ *   preserves index.md and role notes intact.
  * - Prevents splitting emoji surrogate pairs.
  *
  * @param params - Start session parameters.
@@ -97,33 +143,67 @@ export async function startSession(
   const roleDoc = await readMemory(`roles/${role}.md`, options);
   const roleContent = roleDoc ? roleDoc.content.trim() : '';
 
-  // 3. Read tasks/<taskId>.md (task session state)
+  // 3. Read decisions index
+  const decisionLines = await loadDecisionsIndexLines(options?.memoryDir);
+
+  // 4. Read tasks/<taskId>.md (task session state)
   const taskDoc = await readMemory(`tasks/${taskId}.md`, options);
   let taskContent = taskDoc ? taskDoc.content.trim() : '';
 
-  const sections: string[] = [];
-
+  // Base permanent sections (index.md + roles/<role>.md)
+  const permanentSections: string[] = [];
   if (indexContent.length > 0) {
-    sections.push(`${indexHeader}${indexContent}`);
+    permanentSections.push(`${indexHeader}${indexContent}`);
   }
-
   if (roleContent.length > 0) {
-    sections.push(`## Role Notes: ${role} (roles/${role}.md)\n${roleContent}`);
+    permanentSections.push(`## Role Notes: ${role} (roles/${role}.md)\n${roleContent}`);
   }
 
-  const permanentPrefix = sections.length > 0 ? `${sections.join('\n\n')}\n\n` : '';
+  const decisionsHeader = '## Decisions Index\n';
   const taskHeader = `## Task State: ${taskId} (tasks/${taskId}.md)\n`;
 
-  const fullContext = taskContent.length > 0
-    ? `${permanentPrefix}${taskHeader}${taskContent}`
-    : permanentPrefix.trimEnd();
+  // Helper to compose full text from candidate sections
+  const compose = (decSec: string, tContent: string): string => {
+    const parts = [...permanentSections];
+    if (decSec.length > 0) parts.push(decSec);
+    if (tContent.length > 0) parts.push(`${taskHeader}${tContent}`);
+    return parts.join('\n\n');
+  };
 
-  if (fullContext.length <= maxChars) {
-    return fullContext;
+  const initialDecisionsSection = decisionLines.length > 0
+    ? `${decisionsHeader}${decisionLines.join('\n')}`
+    : '';
+
+  let full = compose(initialDecisionsSection, taskContent);
+  if (full.length <= maxChars) {
+    return full;
   }
 
-  // Truncate oldest part of task state
-  const budgetForTask = maxChars - (permanentPrefix.length + taskHeader.length);
+  // If exceeding maxChars:
+  // Step 1: Truncate Decisions index (from the end) first
+  let keptDecisionLines = [...decisionLines];
+  let decisionsSection = initialDecisionsSection;
+
+  while (keptDecisionLines.length > 0) {
+    // If current full text exceeds maxChars, remove one decision line from the end
+    if (compose(decisionsSection, taskContent).length <= maxChars) {
+      break;
+    }
+    keptDecisionLines.pop();
+    decisionsSection = keptDecisionLines.length > 0
+      ? `${decisionsHeader}${keptDecisionLines.join('\n')}`
+      : '';
+  }
+
+  full = compose(decisionsSection, taskContent);
+  if (full.length <= maxChars) {
+    return full;
+  }
+
+  // Step 2: If still exceeding, truncate oldest part of task state
+  const prefixBeforeTask = compose(decisionsSection, '');
+  const prefixLen = prefixBeforeTask.length > 0 ? prefixBeforeTask.length + 2 : 0; // +2 for '\n\n'
+  const budgetForTask = maxChars - (prefixLen + taskHeader.length);
 
   if (budgetForTask > TRUNCATION_MARKER.length + 20 && taskContent.length > 0) {
     const allowedLength = budgetForTask - (TRUNCATION_MARKER.length + 2);
@@ -134,7 +214,12 @@ export async function startSession(
     taskContent = TRUNCATION_MARKER;
   }
 
-  return `${permanentPrefix}${taskHeader}${taskContent}`;
+  full = compose(decisionsSection, taskContent);
+  if (full.length > maxChars) {
+    return safeSlice(full, 0, maxChars);
+  }
+
+  return full;
 }
 
 /**

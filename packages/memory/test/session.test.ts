@@ -174,4 +174,114 @@ describe('Session lifecycle helpers (T4)', () => {
     expect(context).toContain('[... Truncated index.md exceeding maxChars ...]');
     expect(context.length).toBeLessThanOrEqual(maxCharsLimit);
   });
+
+  describe('Task T7.0: Decisions Index & Hierarchical Truncation', () => {
+    it('does not include Decisions Index when decisions/ directory does not exist or has no markdown files', async () => {
+      await appendMemory('roles/dev.md', 'Dev note', { updatedBy: 'dev' }, { memoryDir });
+      await appendMemory('tasks/t-1.md', 'Task note', { updatedBy: 'dev' }, { memoryDir });
+
+      const context = await startSession({ taskId: 't-1', role: 'dev' }, { memoryDir });
+      expect(context).not.toContain('## Decisions Index');
+    });
+
+    it('includes Decisions Index in exact section order: index.md -> roles/<role>.md -> Decisions index -> tasks/<taskId>.md', async () => {
+      const { writeFileSync, mkdirSync } = await import('node:fs');
+      writeFileSync(
+        path.join(memoryDir, 'index.md'),
+        '---\nname: index\ndescription: d\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\nProject Rule A'
+      );
+      await appendMemory('roles/qa.md', 'QA Rule B', { updatedBy: 'qa' }, { memoryDir });
+      await appendMemory('decisions/d-01.md', 'Decision 1 details', { updatedBy: 'architect', name: 'd-01', description: 'Use PostgreSQL' }, { memoryDir });
+      await appendMemory('decisions/d-02.md', 'Decision 2 details', { updatedBy: 'architect', name: 'd-02', description: 'Use GraphQL' }, { memoryDir });
+      await appendMemory('tasks/run-1.md', 'Task State C', { updatedBy: 'qa' }, { memoryDir });
+
+      // Add a .lock and a .tmp file to decisions directory to verify they are ignored
+      writeFileSync(path.join(memoryDir, 'decisions', 'd-01.md.lock'), 'lock content');
+      writeFileSync(path.join(memoryDir, 'decisions', '.d-temp.tmp'), 'tmp content');
+      writeFileSync(path.join(memoryDir, 'decisions', 'corrupt.md'), 'not-yaml-frontmatter');
+
+      const context = await startSession({ taskId: 'run-1', role: 'qa' }, { memoryDir });
+
+      // Verify exact section order
+      const idxPos = context.indexOf('## Project Conventions (index.md)');
+      const rolePos = context.indexOf('## Role Notes: qa (roles/qa.md)');
+      const decPos = context.indexOf('## Decisions Index');
+      const taskPos = context.indexOf('## Task State: run-1 (tasks/run-1.md)');
+
+      expect(idxPos).toBeGreaterThanOrEqual(0);
+      expect(rolePos).toBeGreaterThan(idxPos);
+      expect(decPos).toBeGreaterThan(rolePos);
+      expect(taskPos).toBeGreaterThan(decPos);
+
+      // Verify decision items
+      expect(context).toContain('- d-01: Use PostgreSQL');
+      expect(context).toContain('- d-02: Use GraphQL');
+      expect(context).not.toContain('lock content');
+      expect(context).not.toContain('tmp content');
+      expect(context).not.toContain('corrupt');
+    });
+
+    it('truncates Decisions index from the end first before truncating task state when exceeding maxChars', async () => {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(
+        path.join(memoryDir, 'index.md'),
+        '---\nname: index\ndescription: d\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\nProject convention'
+      );
+      await appendMemory('roles/dev.md', 'Role note', { updatedBy: 'dev' }, { memoryDir });
+
+      // Create 5 decisions with emojis
+      for (let i = 1; i <= 5; i++) {
+        await appendMemory(
+          `decisions/dec-0${i}.md`,
+          `Decision detail ${i}`,
+          { updatedBy: 'lead', name: `dec-0${i}`, description: `Decision number ${i} with emoji 🚀` },
+          { memoryDir }
+        );
+      }
+
+      const taskStateLine = 'Important task progress line that should be kept intact!';
+      await appendMemory('tasks/t-truncate.md', taskStateLine, { updatedBy: 'dev' }, { memoryDir });
+
+      // Budget that fits index + role + taskState + only first 2 decisions
+      // Calculate length: index (~65), role (~45), task (~110), each decision line (~45).
+      const maxChars = 340;
+      const context = await startSession({ taskId: 't-truncate', role: 'dev', maxChars }, { memoryDir });
+
+      expect(context.length).toBeLessThanOrEqual(maxChars);
+      // index.md and role notes are preserved intact
+      expect(context).toContain('Project convention');
+      expect(context).toContain('Role note');
+      // Task state was NOT truncated yet because removing decisions from the end was sufficient
+      expect(context).toContain(taskStateLine);
+      expect(context).not.toContain(TRUNCATION_MARKER);
+      // Earlier decisions are kept, later decisions truncated from end
+      expect(context).toContain('- dec-01:');
+      expect(context).not.toContain('- dec-05:');
+      // Verify no split emoji surrogate pairs
+      expect(context.includes('\uFFFD')).toBe(false);
+    });
+
+    it('truncates oldest part of task state only after Decisions index has been truncated', async () => {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(
+        path.join(memoryDir, 'index.md'),
+        '---\nname: index\ndescription: d\nscope: project\nupdatedAt: "2026-09-28T00:00:00.000Z"\nupdatedBy: owner\n---\nShort index'
+      );
+      await appendMemory('roles/qa.md', 'Short role', { updatedBy: 'qa' }, { memoryDir });
+      await appendMemory('decisions/d1.md', 'Dec', { updatedBy: 'lead', name: 'd1', description: 'Short dec' }, { memoryDir });
+
+      // Very long task state
+      for (let i = 1; i <= 30; i++) {
+        await appendMemory('tasks/long-task.md', `Task line ${i} with emoji 🎯`, { updatedBy: 'qa' }, { memoryDir });
+      }
+
+      // Very small maxChars budget
+      const maxChars = 220;
+      const context = await startSession({ taskId: 'long-task', role: 'qa', maxChars }, { memoryDir });
+
+      expect(context.length).toBeLessThanOrEqual(maxChars);
+      expect(context).toContain(TRUNCATION_MARKER);
+      expect(context.includes('\uFFFD')).toBe(false);
+    });
+  });
 });

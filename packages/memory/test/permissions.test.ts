@@ -70,6 +70,8 @@ describe('Task T7.0: Strict Write Path Allowlist & Permission Enforcement', () =
       { path: './index.md', reason: 'leading dot-slash on index' },
       { path: 'INDEX.md', reason: 'uppercase INDEX.md' },
       { path: 'decisions/../index.md', reason: 'relative traversal to index' },
+      { path: 'roles/PM.md', reason: 'uppercase letter in role identifier' },
+      { path: 'roles/Role_1.md', reason: 'mixed case letter in role identifier' },
 
       // Windows backslashes
       { path: 'roles\\pm.md', reason: 'Windows backslash in roles path' },

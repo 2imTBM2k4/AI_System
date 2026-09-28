@@ -120,6 +120,11 @@ export function validateWriteTarget(root: string, relPath: string): AllowedWrite
   }
 
   const id = filename.slice(0, -3);
+  if (dir === 'roles' && !/^[a-z0-9_-]+$/.test(id)) {
+    throw new Error(
+      `Invalid memory write target "${relPath}". Role identifier must be strictly lowercase [a-z0-9_-].`
+    );
+  }
   validateIdentifier(id, `${dir} id`);
 
   const canonicalRelPath = `${dir}/${id}.md`;

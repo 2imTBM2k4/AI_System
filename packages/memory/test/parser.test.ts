@@ -138,4 +138,110 @@ Content`;
     // @ts-expect-error testing invalid type
     expect(() => parseMemory(undefined)).toThrowError(MemoryParseError);
   });
+
+  it('parses unquoted ISO updatedAt timestamps accurately', () => {
+    const rawUnquotedDate = `---
+name: unquoted-date-test
+description: Testing unquoted YAML timestamp
+scope: task
+updatedAt: 2026-09-28T10:00:00.000Z
+updatedBy: worker
+---
+- Step completed
+`;
+    const doc = parseMemory(rawUnquotedDate);
+    expect(doc.frontmatter.updatedAt).toBe('2026-09-28T10:00:00.000Z');
+  });
+
+  it('parses content with Windows CRLF (\\r\\n) line endings without error', () => {
+    const rawCrlf = '---\r\nname: crlf-test\r\ndescription: CRLF test\r\nscope: project\r\nupdatedAt: "2026-09-28T10:00:00.000Z"\r\nupdatedBy: win-agent\r\n---\r\n- Line 1 with CRLF\r\n- Line 2 with CRLF\r\n';
+    const doc = parseMemory(rawCrlf);
+    expect(doc.frontmatter.name).toBe('crlf-test');
+    expect(doc.content).toContain('Line 1 with CRLF');
+    expect(doc.content).toContain('Line 2 with CRLF');
+  });
+
+  it('strips UTF-8 BOM (\\uFEFF) character seamlessly', () => {
+    const rawWithBom = '\uFEFF---\nname: bom-test\ndescription: BOM test\nscope: project\nupdatedAt: "2026-09-28T10:00:00.000Z"\nupdatedBy: agent\n---\n- Fact after BOM\n';
+    const doc = parseMemory(rawWithBom);
+    expect(doc.frontmatter.name).toBe('bom-test');
+    expect(doc.content).toContain('Fact after BOM');
+  });
+
+  it('preserves horizontal rule "---" dividers inside markdown body without corrupting frontmatter', () => {
+    const rawWithBodyDashes = `---
+name: body-dashes-test
+description: Body containing dashes
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+
+Section 1 facts:
+- Item 1
+
+---
+
+Section 2 facts:
+- Item 2
+`;
+    const doc = parseMemory(rawWithBodyDashes);
+    expect(doc.frontmatter.name).toBe('body-dashes-test');
+    expect(doc.content).toContain('Section 1 facts:');
+    expect(doc.content).toContain('---');
+    expect(doc.content).toContain('Section 2 facts:');
+  });
+
+  it('ensures immutability and consistent results when parsed multiple times', () => {
+    const raw = `---
+name: multi-parse-test
+description: Consistency test
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+- Content
+`;
+    const doc1 = parseMemory(raw);
+    const doc2 = parseMemory(raw);
+
+    expect(doc1).toEqual(doc2);
+    expect(doc1).not.toBe(doc2); // Different object instances
+
+    // Mutating doc1 does not affect doc2
+    doc1.frontmatter.name = 'mutated';
+    expect(doc2.frontmatter.name).toBe('multi-parse-test');
+  });
+
+  it('rejects invalid data types for frontmatter fields (number, boolean, array)', () => {
+    const numericName = `---
+name: 12345
+description: Test
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(numericName)).toThrowError(/'name' must be a non-empty string/);
+
+    const booleanDesc = `---
+name: test
+description: true
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: agent
+---
+Content`;
+    expect(() => parseMemory(booleanDesc)).toThrowError(/'description' must be a string/);
+
+    const arrayUpdatedBy = `---
+name: test
+description: Test
+scope: project
+updatedAt: "2026-09-28T10:00:00.000Z"
+updatedBy: [agent1, agent2]
+---
+Content`;
+    expect(() => parseMemory(arrayUpdatedBy)).toThrowError(/'updatedBy' must be a non-empty string/);
+  });
 });

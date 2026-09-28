@@ -33,7 +33,12 @@ function validateFrontmatter(data: Record<string, unknown>, filePath?: string): 
     );
   }
 
-  if (typeof updatedAt !== 'string' || updatedAt.trim().length === 0 || isNaN(Date.parse(updatedAt))) {
+  let normalizedUpdatedAt = '';
+  if (updatedAt instanceof Date && !isNaN(updatedAt.getTime())) {
+    normalizedUpdatedAt = updatedAt.toISOString();
+  } else if (typeof updatedAt === 'string' && updatedAt.trim().length > 0 && !isNaN(Date.parse(updatedAt))) {
+    normalizedUpdatedAt = updatedAt.trim();
+  } else {
     throw new MemoryParseError(
       "Frontmatter missing or invalid 'updatedAt': must be a valid ISO 8601 date string",
       filePath
@@ -48,7 +53,7 @@ function validateFrontmatter(data: Record<string, unknown>, filePath?: string): 
     name: name.trim(),
     description,
     scope: scope as MemoryScope,
-    updatedAt: updatedAt.trim(),
+    updatedAt: normalizedUpdatedAt,
     updatedBy: updatedBy.trim(),
   };
 }
@@ -66,15 +71,18 @@ export function parseMemory(raw: string, filePath?: string): MemoryDoc {
     throw new MemoryParseError('Expected raw content to be a string', filePath);
   }
 
+  // Strip UTF-8 Byte Order Mark (BOM) if present
+  const cleanRaw = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
+
   let parsed: matter.GrayMatterFile<string>;
   try {
-    parsed = matter(raw);
+    parsed = matter(cleanRaw);
   } catch (error: any) {
     throw new MemoryParseError(`Failed to parse frontmatter YAML: ${error?.message || error}`, filePath);
   }
 
   // Check if raw actually had a frontmatter block
-  const hasFrontmatterBlock = matter.test(raw);
+  const hasFrontmatterBlock = matter.test(cleanRaw);
   if (!hasFrontmatterBlock) {
     throw new MemoryParseError('File is missing YAML frontmatter block (--- ... ---)', filePath);
   }

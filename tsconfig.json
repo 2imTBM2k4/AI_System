@@ -5,6 +5,7 @@
     { "path": "./packages/shared-types" },
     { "path": "./packages/cli" },
     { "path": "./packages/server" },
+    { "path": "./packages/memory" },
     { "path": "./apps/web" }
   ]
 }

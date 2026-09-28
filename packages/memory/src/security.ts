@@ -43,7 +43,15 @@ export function validateIdentifier(id: unknown, fieldName: 'taskId' | 'role' | '
     throw new InvalidIdentifierError(`${fieldName} must be a non-empty string`, String(id));
   }
 
+  const MAX_IDENTIFIER_LENGTH = 64;
   const trimmed = id.trim();
+
+  if (trimmed.length > MAX_IDENTIFIER_LENGTH) {
+    throw new InvalidIdentifierError(
+      `${fieldName} exceeds maximum allowed length of ${MAX_IDENTIFIER_LENGTH} characters (length: ${trimmed.length})`,
+      trimmed
+    );
+  }
 
   // Check character whitelist
   if (!IDENTIFIER_WHITELIST_REGEX.test(trimmed)) {

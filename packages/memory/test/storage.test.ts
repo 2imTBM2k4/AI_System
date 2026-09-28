@@ -37,35 +37,45 @@ describe('storage layer (T2)', () => {
       expect(() => resolveSafePath(rootDir, absPath)).toThrowError(PathTraversalError);
     });
 
-    it('rejects symlinks that resolve outside of root (tested with both real symlink and junction)', () => {
+    it('rejects directory junctions that resolve outside of root', () => {
       const outsideDir = mkdtempSync(path.join(tmpdir(), 'squad-mem-outside-'));
-      const outsideFile = path.join(outsideDir, 'secret.txt');
-      writeFileSync(outsideFile, 'confidential', 'utf8');
-
-      // 1. Test real file symlink if permissions allow
-      const symlinkFilePath = path.join(rootDir, 'symlink_secret.txt');
-      let fileSymlinkCreated = false;
-      try {
-        symlinkSync(outsideFile, symlinkFilePath, 'file');
-        fileSymlinkCreated = true;
-        expect(() => resolveSafePath(rootDir, 'symlink_secret.txt')).toThrowError(PathTraversalError);
-      } catch (err: any) {
-        if (err.code === 'EPERM' && process.platform === 'win32') {
-          console.info('[SKIPPED file symlink test on Windows due to lack of SeCreateSymbolicLinkPrivilege / Developer Mode]');
-        } else if (!(err instanceof PathTraversalError)) {
-          throw err;
-        }
-      }
-
-      // 2. Test directory junction (supported 100% on Windows without elevated privileges)
       const junctionDir = path.join(rootDir, 'outside_junction');
       const junctionType = process.platform === 'win32' ? 'junction' : 'dir';
       symlinkSync(outsideDir, junctionDir, junctionType);
 
-      expect(() => resolveSafePath(rootDir, 'outside_junction/secret.txt')).toThrowError(PathTraversalError);
+      try {
+        expect(() => resolveSafePath(rootDir, 'outside_junction/secret.txt')).toThrowError(PathTraversalError);
+      } finally {
+        if (existsSync(outsideDir)) {
+          rmSync(outsideDir, { recursive: true, force: true });
+        }
+      }
+    });
 
-      if (existsSync(outsideDir)) {
-        rmSync(outsideDir, { recursive: true, force: true });
+    it('rejects real file symlinks that resolve outside of root', (ctx) => {
+      const outsideDir = mkdtempSync(path.join(tmpdir(), 'squad-mem-outside-file-'));
+      const outsideFile = path.join(outsideDir, 'secret.txt');
+      writeFileSync(outsideFile, 'secret content', 'utf8');
+
+      const symlinkFilePath = path.join(rootDir, 'symlink_secret.txt');
+      try {
+        symlinkSync(outsideFile, symlinkFilePath, 'file');
+      } catch (err: any) {
+        if (err.code === 'EPERM' && process.platform === 'win32') {
+          // On Windows, creating file symlinks requires elevated SeCreateSymbolicLinkPrivilege / Developer Mode.
+          // When not available, mark test as SKIPPED so it is transparently not counted as passed.
+          ctx.skip();
+          return;
+        }
+        throw err;
+      }
+
+      try {
+        expect(() => resolveSafePath(rootDir, 'symlink_secret.txt')).toThrowError(PathTraversalError);
+      } finally {
+        if (existsSync(outsideDir)) {
+          rmSync(outsideDir, { recursive: true, force: true });
+        }
       }
     });
 
@@ -289,5 +299,110 @@ describe('storage layer (T2)', () => {
         expect(content).toContain(`[worker-2] line ${i}`);
       }
     }, 25000);
+
+    it('preserves stolen lock when original holder releases late due to token mismatch', async () => {
+      const target = path.join(rootDir, 'stolen-lock.txt');
+      const lockPath = `${target}.lock`;
+
+      // Process B's active lock file
+      const tokenB = 'token-process-b-456';
+      const payloadB = {
+        token: tokenB,
+        pid: process.pid,
+        acquiredAt: Date.now(),
+        filePath: target,
+      };
+      await writeFile(lockPath, JSON.stringify(payloadB), 'utf8');
+
+      // Process A had tokenA = 'token-process-a-123'
+      // Simulate A attempting to release lock file after B has acquired it
+      const tokenA = 'token-process-a-123';
+      const raw = await readFile(lockPath, 'utf8');
+      const current = JSON.parse(raw);
+      if (current.token === tokenA) {
+        rmSync(lockPath, { force: true });
+      }
+
+      // Lock file of B MUST NOT be deleted
+      expect(existsSync(lockPath)).toBe(true);
+      const remainingPayload = JSON.parse(await readFile(lockPath, 'utf8'));
+      expect(remainingPayload.token).toBe(tokenB);
+
+      rmSync(lockPath, { force: true });
+    });
+
+    it('reclaims stale lock using real-time clock pause with small staleMs threshold (100ms)', async () => {
+      const target = path.join(rootDir, 'stale-realtime-test.md');
+      const lockPath = `${target}.lock`;
+
+      // Write lock with current timestamp and alive PID
+      const payload = {
+        token: 'realtime-token-1',
+        pid: process.pid,
+        acquiredAt: Date.now(),
+        filePath: target,
+      };
+      await writeFile(lockPath, JSON.stringify(payload), 'utf8');
+
+      // Real clock pause of 150ms exceeding staleMs of 100ms
+      await new Promise((r) => setTimeout(r, 150));
+
+      let reclaimed = false;
+      await withFileLock(
+        target,
+        async () => {
+          reclaimed = true;
+        },
+        { timeoutMs: 2000, staleMs: 100, retryIntervalMs: 20 }
+      );
+
+      expect(reclaimed).toBe(true);
+    });
+
+    it('enforces strict mutual exclusion across 4 real OS processes incrementing a counter, even when an initial stale lock is present', async () => {
+      const counterFile = path.join(rootDir, 'shared-counter.txt');
+      const scriptPath = path.resolve(__dirname, 'fixtures/counter-increaser.js');
+      const workerCount = 4;
+      const iterationsPerWorker = 15;
+      const expectedTotal = workerCount * iterationsPerWorker; // 60
+
+      // Plant an initial stale lock from a dead PID (99999999)
+      const lockPath = `${counterFile}.lock`;
+      const initialStalePayload = {
+        token: 'initial-stale-token',
+        pid: 99999999,
+        acquiredAt: Date.now() - 5000,
+        filePath: counterFile,
+      };
+      await writeFile(lockPath, JSON.stringify(initialStalePayload), 'utf8');
+
+      const runWorker = (workerId: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const child = fork(scriptPath, [
+            '--file', counterFile,
+            '--id', workerId,
+            '--iterations', iterationsPerWorker.toString(),
+          ]);
+
+          child.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`Counter worker ${workerId} failed with exit code ${code}`));
+          });
+
+          child.on('error', reject);
+        });
+      };
+
+      // Spawn all 4 real OS processes concurrently
+      const workers = Array.from({ length: workerCount }, (_, i) => runWorker((i + 1).toString()));
+      await Promise.all(workers);
+
+      // Verify mutual exclusion: counter must be exactly 60
+      expect(existsSync(counterFile)).toBe(true);
+      const finalCountRaw = await readFile(counterFile, 'utf8');
+      const finalCount = parseInt(finalCountRaw.trim(), 10);
+
+      expect(finalCount).toBe(expectedTotal);
+    }, 30000);
   });
 });

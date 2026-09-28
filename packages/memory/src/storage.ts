@@ -162,6 +162,7 @@ export interface LockOptions {
 }
 
 interface LockPayload {
+  token: string;
   pid: number;
   acquiredAt: number;
   filePath: string;
@@ -209,6 +210,7 @@ export async function withFileLock<T>(
   await mkdir(dir, { recursive: true });
 
   const startTime = Date.now();
+  const lockToken = randomUUID();
   let acquired = false;
   let lastContentionError: unknown = undefined;
 
@@ -220,6 +222,7 @@ export async function withFileLock<T>(
       // Attempt atomic creation of the lock file
       const handle = await open(lockPath, 'wx');
       const payload: LockPayload = {
+        token: lockToken,
         pid: process.pid,
         acquiredAt: Date.now(),
         filePath,
@@ -297,11 +300,23 @@ export async function withFileLock<T>(
   try {
     return await fn();
   } finally {
-    // Release lock file
+    // Release lock file ONLY if token matches (prevents releasing a lock stolen by another process)
     try {
-      await unlink(lockPath);
+      if (existsSync(lockPath)) {
+        const raw = await readFile(lockPath, 'utf8').catch(() => null);
+        if (raw) {
+          try {
+            const currentLock = JSON.parse(raw) as LockPayload;
+            if (currentLock.token === lockToken) {
+              await unlink(lockPath).catch(() => {});
+            }
+          } catch {
+            // If lock file was corrupt or being rewritten, don't unlink indiscriminately
+          }
+        }
+      }
     } catch {
-      // Ignore if already unlinked
+      // Ignore cleanup error
     }
   }
 }

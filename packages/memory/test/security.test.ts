@@ -36,4 +36,15 @@ describe('Security: validateIdentifier', () => {
       expect(() => validateIdentifier(name, 'taskId')).toThrowError(/Windows reserved device name/);
     }
   });
+
+  it('strictly enforces 64 character maximum length limit', () => {
+    // Exactly 64 characters -> allowed
+    const valid64 = 'a'.repeat(64);
+    expect(validateIdentifier(valid64, 'taskId')).toBe(valid64);
+
+    // 65 characters -> rejected
+    const invalid65 = 'a'.repeat(65);
+    expect(() => validateIdentifier(invalid65, 'taskId')).toThrowError(InvalidIdentifierError);
+    expect(() => validateIdentifier(invalid65, 'taskId')).toThrowError(/exceeds maximum allowed length of 64 characters/);
+  });
 });
